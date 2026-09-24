@@ -121,7 +121,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               Active profile
             </p>
             <Select
-              value={activeRole ?? undefined}
+              value={activeRole ?? ""}
               onValueChange={(v) => setActiveRole(v as AppRole)}
               disabled={availableRoles.length < 2}
             >
@@ -165,10 +165,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               Routing Deviation
             </span>
           </div>
-          <Select
-            value={activeRole ?? undefined}
-            onValueChange={(v) => setActiveRole(v as AppRole)}
-          >
+          <Select value={activeRole ?? ""} onValueChange={(v) => setActiveRole(v as AppRole)}>
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Role" />
             </SelectTrigger>
