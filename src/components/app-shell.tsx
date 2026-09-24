@@ -11,6 +11,7 @@ import {
   LogOut,
   PlusCircle,
   ScrollText,
+  Settings2,
   ShieldCheck,
   SlidersHorizontal,
   UserCog,
@@ -54,6 +55,12 @@ const NAV: NavItem[] = [
   { to: "/form-builder", label: "Form Builder", icon: SlidersHorizontal, roles: ["ADMIN"] },
   { to: "/users", label: "User Accounts", icon: UserCog, roles: ["ADMIN"] },
   { to: "/audit-log", label: "Audit Log", icon: ScrollText, roles: ["ADMIN"] },
+  {
+    to: "/settings",
+    label: "Settings",
+    icon: Settings2,
+    roles: ["ADMIN", "VIEWER", "REQUESTER", "FLOOR_MANAGER", "PPC_REVIEWER"],
+  },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {

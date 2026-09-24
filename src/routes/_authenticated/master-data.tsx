@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Download, Search } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Download, Plus, Search, Trash2, Upload } from "lucide-react";
+import * as XLSX from "xlsx";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { useDebounced } from "@/lib/master";
@@ -19,7 +21,15 @@ const PAGE = 50;
 function MasterData() {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(0);
+  const [manualRow, setManualRow] = useState({
+    item: "",
+    op_code: "",
+    op_desc: "",
+    dept_code: "",
+    dept_desc: "",
+  });
   const term = useDebounced(q);
+  const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ["master-page", term, page],
@@ -43,6 +53,96 @@ function MasterData() {
 
   const rows = data?.rows ?? [];
   const count = data?.count ?? 0;
+
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["master-page"] });
+
+  const addRows = useMutation({
+    mutationFn: async (newRows: Array<Omit<MasterRow, "id">>) => {
+      const { error } = await supabase.from("master_routing").insert(newRows);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setManualRow({ item: "", op_code: "", op_desc: "", dept_code: "", dept_desc: "" });
+      refresh();
+      toast.success("Master data added");
+    },
+    onError: (error) => toast.error(`Could not add master data: ${error.message}`),
+  });
+
+  const deleteRow = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("master_routing").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      refresh();
+      toast.success("Master data deleted");
+    },
+    onError: (error) => toast.error(`Could not delete master data: ${error.message}`),
+  });
+
+  const importRows = useMutation({
+    mutationFn: async ({ file, replace }: { file: File; replace: boolean }) => {
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]!];
+      if (!sheet) throw new Error("The selected file has no worksheet");
+      const values = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" });
+      const headers = (values[0] ?? []).map((value) => normalizeHeader(String(value)));
+      const indexOf = (names: string[]) =>
+        names
+          .map(normalizeHeader)
+          .map((name) => headers.indexOf(name))
+          .find((index) => index >= 0) ?? -1;
+      const indexes = {
+        item: indexOf(["item"]),
+        op_code: indexOf(["operation code", "op code", "op_code"]),
+        op_desc: indexOf(["operation description", "op desc", "op_desc"]),
+        dept_code: indexOf(["department code", "dept code", "dept_code"]),
+        dept_desc: indexOf(["department description", "dept desc", "dept_desc"]),
+      };
+      if (indexes.item < 0) throw new Error("The file must include an Item column");
+      const parsed = values
+        .slice(1)
+        .map((row) => ({
+          item: cell(row, indexes.item),
+          op_code: cell(row, indexes.op_code),
+          op_desc: cell(row, indexes.op_desc),
+          dept_code: cell(row, indexes.dept_code),
+          dept_desc: cell(row, indexes.dept_desc),
+        }))
+        .filter((row) => row.item);
+      if (parsed.length === 0) throw new Error("The file contains no rows with an Item value");
+      if (replace) {
+        const { error: deleteError } = await supabase
+          .from("master_routing")
+          .delete()
+          .not("id", "is", null);
+        if (deleteError) throw deleteError;
+      }
+      const { error } = await supabase.from("master_routing").insert(parsed);
+      if (error) throw error;
+      return parsed.length;
+    },
+    onSuccess: (numberOfRows, variables) => {
+      refresh();
+      toast.success(
+        `${numberOfRows.toLocaleString()} rows ${variables.replace ? "replaced" : "added"}`,
+      );
+    },
+    onError: (error) => toast.error(`Could not import master data: ${error.message}`),
+  });
+
+  const chooseFile = (replace: boolean) => {
+    if (replace && !window.confirm("Replace all existing master data with this file?")) return;
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".xlsx,.xls,.csv";
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (file) importRows.mutate({ file, replace });
+    };
+    input.click();
+  };
 
   return (
     <div>
@@ -79,6 +179,59 @@ function MasterData() {
         }
       />
 
+      <div className="mb-5 grid gap-4 lg:grid-cols-2">
+        <section className="rounded-lg border border-border bg-card p-4">
+          <h2 className="mb-3 text-xs font-semibold tracking-wide uppercase">Add row manually</h2>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {(
+              [
+                ["item", "Item"],
+                ["op_code", "Operation Code"],
+                ["op_desc", "Operation Description"],
+                ["dept_code", "Department Code"],
+                ["dept_desc", "Department Description"],
+              ] as const
+            ).map(([key, label]) => (
+              <Input
+                key={key}
+                placeholder={label}
+                value={manualRow[key]}
+                onChange={(event) => setManualRow((row) => ({ ...row, [key]: event.target.value }))}
+              />
+            ))}
+            <Button
+              className="sm:col-span-2"
+              disabled={!manualRow.item.trim() || addRows.isPending}
+              onClick={() => addRows.mutate({ ...manualRow, item: manualRow.item.trim() })}
+            >
+              <Plus className="mr-2 size-4" /> Add
+            </Button>
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-border bg-card p-4">
+          <h2 className="mb-2 text-xs font-semibold tracking-wide uppercase">
+            Upload Excel / CSV file
+          </h2>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Columns: Item, Operation Code, Operation Description, Department Code, Department
+            Description.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button disabled={importRows.isPending} onClick={() => chooseFile(false)}>
+              <Upload className="mr-2 size-4" /> Add to existing
+            </Button>
+            <Button
+              variant="outline"
+              disabled={importRows.isPending}
+              onClick={() => chooseFile(true)}
+            >
+              <Upload className="mr-2 size-4" /> Replace all
+            </Button>
+          </div>
+        </section>
+      </div>
+
       <div className="relative mb-4 max-w-md">
         <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -112,7 +265,7 @@ function MasterData() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={5} className="px-3 py-8 text-center text-muted-foreground">
+                <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">
                   Loading…
                 </td>
               </tr>
@@ -124,6 +277,17 @@ function MasterData() {
                   <td className="px-3 py-2">{r.op_desc ?? "—"}</td>
                   <td className="px-3 py-2">{r.dept_code ?? "—"}</td>
                   <td className="px-3 py-2">{r.dept_desc ?? "—"}</td>
+                  <td className="px-3 py-2 text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Delete row"
+                      disabled={deleteRow.isPending}
+                      onClick={() => deleteRow.mutate(r.id)}
+                    >
+                      <Trash2 className="size-4 text-destructive" />
+                    </Button>
+                  </td>
                 </tr>
               ))
             )}
@@ -154,4 +318,16 @@ function MasterData() {
       </div>
     </div>
   );
+}
+
+function normalizeHeader(value: string): string {
+  return value.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+}
+
+function cell(row: unknown[], index: number): string | null {
+  if (index < 0) return null;
+  const value = row[index];
+  return value === undefined || value === null || String(value).trim() === ""
+    ? null
+    : String(value).trim();
 }
