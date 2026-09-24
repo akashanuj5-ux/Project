@@ -8,7 +8,13 @@ import { downloadCSV, toCSV } from "@/lib/csv";
 import { ALL_ROLES, ROLE_LABELS, type AppRole } from "@/lib/types";
 import { PageHeader } from "@/components/badges";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const Route = createFileRoute("/_authenticated/users")({
   component: Users,
@@ -19,7 +25,8 @@ function Users() {
   const queryClient = useQueryClient();
   const profiles = data?.profiles ?? [];
   const roles = data?.roles ?? [];
-  const roleOf = (id: string) => (roles.find((r) => r.user_id === id)?.role as AppRole | undefined) ?? "REQUESTER";
+  const roleOf = (id: string) =>
+    (roles.find((r) => r.user_id === id)?.role as AppRole | undefined) ?? "REQUESTER";
 
   async function changeRole(userId: string, role: AppRole) {
     const { error: delErr } = await supabase.from("user_roles").delete().eq("user_id", userId);
@@ -37,7 +44,10 @@ function Users() {
   }
 
   async function toggleActive(userId: string, isActive: boolean) {
-    const { error } = await supabase.from("profiles").update({ is_active: !isActive }).eq("id", userId);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ is_active: !isActive })
+      .eq("id", userId);
     if (error) {
       toast.error(error.message);
       return;
@@ -94,7 +104,10 @@ function Users() {
                   <td className="px-3 py-2 font-medium">{p.full_name}</td>
                   <td className="px-3 py-2 text-muted-foreground">{p.email}</td>
                   <td className="px-3 py-2">
-                    <Select value={roleOf(p.id)} onValueChange={(v) => changeRole(p.id, v as AppRole)}>
+                    <Select
+                      value={roleOf(p.id)}
+                      onValueChange={(v) => changeRole(p.id, v as AppRole)}
+                    >
                       <SelectTrigger className="w-52">
                         <SelectValue />
                       </SelectTrigger>
@@ -113,7 +126,11 @@ function Users() {
                     </span>
                   </td>
                   <td className="px-3 py-2">
-                    <Button size="sm" variant="outline" onClick={() => toggleActive(p.id, p.is_active)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => toggleActive(p.id, p.is_active)}
+                    >
                       {p.is_active ? "Deactivate" : "Reactivate"}
                     </Button>
                   </td>

@@ -29,7 +29,11 @@ const PAIR: Record<LookupKind, keyof MasterRow | null> = {
   dept_desc: "dept_code",
 };
 
-export async function searchMaster(kind: LookupKind, term: string, mode: LookupMode = "prefix"): Promise<Suggestion[]> {
+export async function searchMaster(
+  kind: LookupKind,
+  term: string,
+  mode: LookupMode = "prefix",
+): Promise<Suggestion[]> {
   const pair = PAIR[kind];
   const cols = ["item", "op_code", "op_desc", "dept_code", "dept_desc"].join(",");
   let query = supabase.from("master_routing").select(cols).not(kind, "is", null).limit(200);
@@ -49,7 +53,12 @@ export async function searchMaster(kind: LookupKind, term: string, mode: LookupM
   return out.sort((a, b) => a.value.localeCompare(b.value, undefined, { numeric: true }));
 }
 
-export function useMasterSuggestions(kind: LookupKind, term: string, enabled = true, mode: LookupMode = "prefix") {
+export function useMasterSuggestions(
+  kind: LookupKind,
+  term: string,
+  enabled = true,
+  mode: LookupMode = "prefix",
+) {
   const debounced = useDebounced(term);
   return useQuery({
     queryKey: ["master-search", kind, debounced, mode],

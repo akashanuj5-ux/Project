@@ -4,7 +4,13 @@ import { Check, Cloud, Download, Loader2, Pencil, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { EXPORT_COLUMNS, deviationToExportRow, generateEcoNumber, logAudit, useDeviations } from "@/lib/data";
+import {
+  EXPORT_COLUMNS,
+  deviationToExportRow,
+  generateEcoNumber,
+  logAudit,
+  useDeviations,
+} from "@/lib/data";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { CHANGE_TYPES, EDITABLE_FIELDS, type Deviation } from "@/lib/types";
 import { AgeBadge, FusionBadge, PageHeader, StatusBadge } from "@/components/badges";
@@ -12,14 +18,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export function ReviewBoard({ level }: { level: "floor" | "ppc" }) {
   const { data: all = [], isLoading } = useDeviations();
   const [tab, setTab] = useState<"pending" | "done">("pending");
 
-  const scope =
-    level === "floor" ? all : all.filter((d) => d.floor_status === "APPROVED");
+  const scope = level === "floor" ? all : all.filter((d) => d.floor_status === "APPROVED");
   const statusKey = level === "floor" ? "floor_status" : "ppc_status";
   const pending = scope.filter((d) => d[statusKey] === "PENDING");
   const done = scope.filter((d) => d[statusKey] !== "PENDING");
@@ -37,7 +48,12 @@ export function ReviewBoard({ level }: { level: "floor" | "ppc" }) {
         actions={
           <Button
             variant="outline"
-            onClick={() => downloadCSV(`${level}-review.csv`, toCSV(rows.map(deviationToExportRow), EXPORT_COLUMNS))}
+            onClick={() =>
+              downloadCSV(
+                `${level}-review.csv`,
+                toCSV(rows.map(deviationToExportRow), EXPORT_COLUMNS),
+              )
+            }
           >
             <Download className="mr-2 size-4" /> Export CSV
           </Button>
@@ -45,10 +61,18 @@ export function ReviewBoard({ level }: { level: "floor" | "ppc" }) {
       />
 
       <div className="mb-4 flex gap-2">
-        <Button variant={tab === "pending" ? "default" : "outline"} size="sm" onClick={() => setTab("pending")}>
+        <Button
+          variant={tab === "pending" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setTab("pending")}
+        >
           Awaiting action ({pending.length})
         </Button>
-        <Button variant={tab === "done" ? "default" : "outline"} size="sm" onClick={() => setTab("done")}>
+        <Button
+          variant={tab === "done" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setTab("done")}
+        >
           Actioned ({done.length})
         </Button>
       </div>
@@ -83,7 +107,8 @@ function ReviewCard({ deviation, level }: { deviation: Deviation; level: "floor"
 
   function snapshot(d: Deviation) {
     const out: Record<string, string> = {};
-    for (const f of EDITABLE_FIELDS) out[f.key as string] = d[f.key] === null || d[f.key] === undefined ? "" : String(d[f.key]);
+    for (const f of EDITABLE_FIELDS)
+      out[f.key as string] = d[f.key] === null || d[f.key] === undefined ? "" : String(d[f.key]);
     return out;
   }
 
@@ -93,7 +118,8 @@ function ReviewCard({ deviation, level }: { deviation: Deviation; level: "floor"
     const patch: Record<string, unknown> = {};
     for (const f of EDITABLE_FIELDS) {
       const key = f.key as string;
-      const oldVal = deviation[f.key] === null || deviation[f.key] === undefined ? "" : String(deviation[f.key]);
+      const oldVal =
+        deviation[f.key] === null || deviation[f.key] === undefined ? "" : String(deviation[f.key]);
       const newVal = draft[key] ?? "";
       if (oldVal !== newVal) {
         changes.push({ field: f.label, old: oldVal || "—", new: newVal || "—" });
@@ -185,7 +211,10 @@ function ReviewCard({ deviation, level }: { deviation: Deviation; level: "floor"
       const ok = Math.random() > 0.12;
       const { error } = await supabase
         .from("deviations")
-        .update({ fusion_sync: ok ? "SYNCED" : "FAILED", fusion_synced_at: ok ? new Date().toISOString() : null })
+        .update({
+          fusion_sync: ok ? "SYNCED" : "FAILED",
+          fusion_synced_at: ok ? new Date().toISOString() : null,
+        })
         .eq("id", deviation.id);
       if (error) throw error;
       await logAudit({
@@ -195,11 +224,17 @@ function ReviewCard({ deviation, level }: { deviation: Deviation; level: "floor"
         actor_name: userName,
         actor_email: userEmail,
         actor_role: activeRole ?? "",
-        remarks: ok ? `Routing pushed to Oracle Fusion (${deviation.eco_no})` : "Fusion endpoint rejected the payload",
+        remarks: ok
+          ? `Routing pushed to Oracle Fusion (${deviation.eco_no})`
+          : "Fusion endpoint rejected the payload",
       });
       await queryClient.invalidateQueries({ queryKey: ["deviations"] });
       await queryClient.invalidateQueries({ queryKey: ["audit"] });
-      ok ? toast.success("Synced to Fusion") : toast.error("Fusion sync failed — retry");
+      if (ok) {
+        toast.success("Synced to Fusion");
+      } else {
+        toast.error("Fusion sync failed — retry");
+      }
     } finally {
       setBusy(false);
     }
@@ -223,7 +258,9 @@ function ReviewCard({ deviation, level }: { deviation: Deviation; level: "floor"
         <div className="mt-3 grid gap-3 text-sm md:grid-cols-4">
           {EDITABLE_FIELDS.map((f) => (
             <div key={f.key as string}>
-              <p className="text-[10px] tracking-widest text-muted-foreground uppercase">{f.label}</p>
+              <p className="text-[10px] tracking-widest text-muted-foreground uppercase">
+                {f.label}
+              </p>
               <p className="truncate">{String(deviation[f.key] ?? "") || "—"}</p>
             </div>
           ))}
@@ -282,7 +319,12 @@ function ReviewCard({ deviation, level }: { deviation: Deviation; level: "floor"
             {editing ? (
               <>
                 <Button size="sm" onClick={saveEdits} disabled={busy}>
-                  {busy ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Check className="mr-2 size-4" />} Save changes
+                  {busy ? (
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                  ) : (
+                    <Check className="mr-2 size-4" />
+                  )}{" "}
+                  Save changes
                 </Button>
                 <Button
                   size="sm"
@@ -303,20 +345,27 @@ function ReviewCard({ deviation, level }: { deviation: Deviation; level: "floor"
             <Button size="sm" onClick={() => decide(true)} disabled={busy || editing}>
               <Check className="mr-2 size-4" /> Approve
             </Button>
-            <Button size="sm" variant="destructive" onClick={() => decide(false)} disabled={busy || editing}>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => decide(false)}
+              disabled={busy || editing}
+            >
               <X className="mr-2 size-4" /> Reject
             </Button>
           </div>
         </div>
       )}
 
-      {level === "ppc" && deviation.ppc_status === "APPROVED" && deviation.fusion_sync !== "SYNCED" && (
-        <div className="mt-4 border-t border-border pt-3">
-          <Button size="sm" variant="outline" onClick={syncFusion} disabled={busy}>
-            <Cloud className="mr-2 size-4" /> Sync routing to Oracle Fusion
-          </Button>
-        </div>
-      )}
+      {level === "ppc" &&
+        deviation.ppc_status === "APPROVED" &&
+        deviation.fusion_sync !== "SYNCED" && (
+          <div className="mt-4 border-t border-border pt-3">
+            <Button size="sm" variant="outline" onClick={syncFusion} disabled={busy}>
+              <Cloud className="mr-2 size-4" /> Sync routing to Oracle Fusion
+            </Button>
+          </div>
+        )}
     </div>
   );
 }

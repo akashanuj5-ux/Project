@@ -159,10 +159,17 @@ export function useAppSettings(enabled = true) {
     enabled,
     staleTime: 30_000,
     queryFn: async (): Promise<AppSettings> => {
-      const { data, error } = await supabase.from("app_settings").select("value").eq("key", "appearance").maybeSingle();
+      const { data, error } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "appearance")
+        .maybeSingle();
       if (error) throw error;
       const value = ((data as { value: AppSettings } | null)?.value ?? {}) as Partial<AppSettings>;
-      return { theme: value.theme ?? DEFAULT_THEME, primary_override: value.primary_override ?? null };
+      return {
+        theme: value.theme ?? DEFAULT_THEME,
+        primary_override: value.primary_override ?? null,
+      };
     },
   });
 }
@@ -170,7 +177,9 @@ export function useAppSettings(enabled = true) {
 export function useSaveSettings() {
   const queryClient = useQueryClient();
   return async (value: AppSettings) => {
-    const { error } = await supabase.from("app_settings").upsert({ key: "appearance", value }, { onConflict: "key" });
+    const { error } = await supabase
+      .from("app_settings")
+      .upsert({ key: "appearance", value }, { onConflict: "key" });
     if (error) throw error;
     await queryClient.invalidateQueries({ queryKey: ["app-settings"] });
   };

@@ -13,9 +13,15 @@ export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: "Sign in — Routing Deviation & ECO Approval" },
-      { name: "description", content: "Sign in to log routing deviations and approve engineering change orders." },
+      {
+        name: "description",
+        content: "Sign in to log routing deviations and approve engineering change orders.",
+      },
       { property: "og:title", content: "Sign in — Routing Deviation & ECO Approval" },
-      { property: "og:description", content: "Sign in to log routing deviations and approve engineering change orders." },
+      {
+        property: "og:description",
+        content: "Sign in to log routing deviations and approve engineering change orders.",
+      },
     ],
   }),
   component: AuthPage,
@@ -60,7 +66,9 @@ function AuthPage() {
   }
 
   async function google() {
-    const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin });
+    const result = await lovable.auth.signInWithOAuth("google", {
+      redirect_uri: window.location.origin,
+    });
     if (result.error) {
       toast.error("Google sign-in failed");
       return;
@@ -77,8 +85,12 @@ function AuthPage() {
             <Factory className="size-6" />
           </div>
           <div>
-            <p className="font-display text-2xl font-bold tracking-wide uppercase">Routing Deviation</p>
-            <p className="text-xs tracking-widest text-muted-foreground uppercase">ECO Approval Workflow</p>
+            <p className="font-display text-2xl font-bold tracking-wide uppercase">
+              Routing Deviation
+            </p>
+            <p className="text-xs tracking-widest text-muted-foreground uppercase">
+              ECO Approval Workflow
+            </p>
           </div>
         </div>
 
@@ -94,12 +106,23 @@ function AuthPage() {
             {mode === "signup" && (
               <div className="space-y-1.5">
                 <Label htmlFor="name">Full name</Label>
-                <Input id="name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+                <Input
+                  id="name"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                />
               </div>
             )}
             <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="password">Password</Label>

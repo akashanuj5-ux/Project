@@ -7,6 +7,7 @@ A production-grade internal system for raising routing deviations on the shop fl
 Lovable Cloud is enabled for login, database, and file storage.
 
 Tables:
+
 - **master_routing** — all 29,999 rows from your spreadsheet (item, op code, op description, dept code, dept description), indexed for fast type-ahead search.
 - **profiles** — name, email, active flag per account.
 - **user_roles** — roles held per account (Administrator, Requester, Floor Manager, PPC Reviewer, Viewer), kept in a separate table so roles cannot be tampered with from the browser.

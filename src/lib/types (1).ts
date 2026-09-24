@@ -10,9 +10,20 @@ export const ROLE_LABELS: Record<AppRole, string> = {
   VIEWER: "Viewer / Management",
 };
 
-export const ALL_ROLES: AppRole[] = ["ADMIN", "REQUESTER", "FLOOR_MANAGER", "PPC_REVIEWER", "VIEWER"];
+export const ALL_ROLES: AppRole[] = [
+  "ADMIN",
+  "REQUESTER",
+  "FLOOR_MANAGER",
+  "PPC_REVIEWER",
+  "VIEWER",
+];
 
-export const CHANGE_TYPES = ["Permanent", "Temporary", "Pilot / Trial", "Emergency Rework"] as const;
+export const CHANGE_TYPES = [
+  "Permanent",
+  "Temporary",
+  "Pilot / Trial",
+  "Emergency Rework",
+] as const;
 
 export interface MasterRow {
   id: string;
@@ -105,7 +116,11 @@ export interface ProfileRow {
   created_at: string;
 }
 
-export const EDITABLE_FIELDS: { key: keyof Deviation; label: string; type: "text" | "number" | "date" | "select" }[] = [
+export const EDITABLE_FIELDS: {
+  key: keyof Deviation;
+  label: string;
+  type: "text" | "number" | "date" | "select";
+}[] = [
   { key: "supervisor_name", label: "Supervisor Name", type: "text" },
   { key: "item_name", label: "Item Name", type: "text" },
   { key: "last_seq_no", label: "Last Seq No.", type: "number" },

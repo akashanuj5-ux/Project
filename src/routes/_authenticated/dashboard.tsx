@@ -7,7 +7,13 @@ import { ageMinutes, isOpen } from "@/lib/types";
 import { AgeBadge, FusionBadge, PageHeader, StatusBadge } from "@/components/badges";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
@@ -21,12 +27,15 @@ function Dashboard() {
 
   const rows = useMemo(() => {
     return all.filter((d) => {
-      const hay = `${d.ticket_no} ${d.item_name} ${d.requester_name} ${d.supervisor_name} ${d.proposed_operation} ${d.next_dept_desc ?? ""} ${d.eco_no ?? ""}`.toLowerCase();
+      const hay =
+        `${d.ticket_no} ${d.item_name} ${d.requester_name} ${d.supervisor_name} ${d.proposed_operation} ${d.next_dept_desc ?? ""} ${d.eco_no ?? ""}`.toLowerCase();
       if (q && !hay.includes(q.toLowerCase())) return false;
       if (stage === "floor_pending" && d.floor_status !== "PENDING") return false;
-      if (stage === "ppc_pending" && !(d.floor_status === "APPROVED" && d.ppc_status === "PENDING")) return false;
+      if (stage === "ppc_pending" && !(d.floor_status === "APPROVED" && d.ppc_status === "PENDING"))
+        return false;
       if (stage === "approved" && d.ppc_status !== "APPROVED") return false;
-      if (stage === "rejected" && d.floor_status !== "REJECTED" && d.ppc_status !== "REJECTED") return false;
+      if (stage === "rejected" && d.floor_status !== "REJECTED" && d.ppc_status !== "REJECTED")
+        return false;
       if (stage === "synced" && d.fusion_sync !== "SYNCED") return false;
       const hrs = ageMinutes(d.submitted_at) / 60;
       if (aging === "lt24" && hrs >= 24) return false;
@@ -39,14 +48,24 @@ function Dashboard() {
   const open = all.filter(isOpen);
   const kpis = [
     { label: "Open tickets", value: open.length, icon: FileClock, tone: "text-amber-300" },
-    { label: "Awaiting floor (L1)", value: all.filter((d) => d.floor_status === "PENDING").length, icon: AlarmClock, tone: "text-amber-300" },
+    {
+      label: "Awaiting floor (L1)",
+      value: all.filter((d) => d.floor_status === "PENDING").length,
+      icon: AlarmClock,
+      tone: "text-amber-300",
+    },
     {
       label: "Awaiting PPC (L2)",
       value: all.filter((d) => d.floor_status === "APPROVED" && d.ppc_status === "PENDING").length,
       icon: AlarmClock,
       tone: "text-primary",
     },
-    { label: "ECO issued", value: all.filter((d) => !!d.eco_no).length, icon: CheckCircle2, tone: "text-emerald-300" },
+    {
+      label: "ECO issued",
+      value: all.filter((d) => !!d.eco_no).length,
+      icon: CheckCircle2,
+      tone: "text-emerald-300",
+    },
     {
       label: "Rejected",
       value: all.filter((d) => d.floor_status === "REJECTED" || d.ppc_status === "REJECTED").length,
@@ -67,7 +86,12 @@ function Dashboard() {
         title="Control Dashboard"
         subtitle="Live status of every routing deviation across both approval levels."
         actions={
-          <Button variant="outline" onClick={() => downloadCSV("deviations.csv", toCSV(rows.map(deviationToExportRow), EXPORT_COLUMNS))}>
+          <Button
+            variant="outline"
+            onClick={() =>
+              downloadCSV("deviations.csv", toCSV(rows.map(deviationToExportRow), EXPORT_COLUMNS))
+            }
+          >
             <Download className="mr-2 size-4" /> Export CSV
           </Button>
         }
@@ -84,7 +108,12 @@ function Dashboard() {
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
-        <Input className="max-w-xs" placeholder="Search ticket, item, ECO, requester…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Input
+          className="max-w-xs"
+          placeholder="Search ticket, item, ECO, requester…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
         <Select value={stage} onValueChange={setStage}>
           <SelectTrigger className="w-48">
             <SelectValue />
@@ -115,7 +144,17 @@ function Dashboard() {
         <table className="w-full min-w-[900px] text-sm">
           <thead className="bg-secondary/60 text-[10px] tracking-widest uppercase">
             <tr>
-              {["Ticket", "Item", "Requester", "Proposed operation", "Age", "L1", "L2", "ECO", "Fusion"].map((h) => (
+              {[
+                "Ticket",
+                "Item",
+                "Requester",
+                "Proposed operation",
+                "Age",
+                "L1",
+                "L2",
+                "ECO",
+                "Fusion",
+              ].map((h) => (
                 <th key={h} className="px-3 py-2 text-left font-semibold">
                   {h}
                 </th>

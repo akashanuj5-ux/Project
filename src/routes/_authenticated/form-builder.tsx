@@ -10,7 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const Route = createFileRoute("/_authenticated/form-builder")({
   component: FormBuilder,
@@ -35,13 +41,22 @@ function FormBuilder() {
 
   async function addField(e: React.FormEvent) {
     e.preventDefault();
-    const key = label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    const key = label
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_|_$/g, "");
     if (!key) return toast.error("Enter a field label");
     const { error } = await supabase.from("form_fields").insert({
       field_key: `custom_${key}`,
       label,
       field_type: type,
-      options: type === "select" ? options.split(",").map((o) => o.trim()).filter(Boolean) : [],
+      options:
+        type === "select"
+          ? options
+              .split(",")
+              .map((o) => o.trim())
+              .filter(Boolean)
+          : [],
       required: false,
       visible: true,
       is_core: false,
@@ -67,10 +82,17 @@ function FormBuilder() {
         subtitle="Show, hide or require any field on the deviation form, and add your own fields."
       />
 
-      <form onSubmit={addField} className="mb-6 grid gap-3 rounded-lg border border-border bg-card p-4 md:grid-cols-4">
+      <form
+        onSubmit={addField}
+        className="mb-6 grid gap-3 rounded-lg border border-border bg-card p-4 md:grid-cols-4"
+      >
         <div className="space-y-1.5 md:col-span-2">
           <Label className="text-xs uppercase">New field label</Label>
-          <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Tooling reference" />
+          <Input
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="e.g. Tooling reference"
+          />
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs uppercase">Type</Label>
@@ -95,7 +117,11 @@ function FormBuilder() {
         {type === "select" && (
           <div className="space-y-1.5 md:col-span-4">
             <Label className="text-xs uppercase">Choices (comma separated)</Label>
-            <Input value={options} onChange={(e) => setOptions(e.target.value)} placeholder="Option A, Option B" />
+            <Input
+              value={options}
+              onChange={(e) => setOptions(e.target.value)}
+              placeholder="Option A, Option B"
+            />
           </div>
         )}
       </form>
@@ -105,7 +131,10 @@ function FormBuilder() {
       ) : (
         <div className="space-y-2">
           {fields.map((f) => (
-            <div key={f.id} className="flex flex-wrap items-center gap-4 rounded-lg border border-border bg-card p-3">
+            <div
+              key={f.id}
+              className="flex flex-wrap items-center gap-4 rounded-lg border border-border bg-card p-3"
+            >
               <div className="min-w-48 flex-1">
                 <p className="font-medium">{f.label}</p>
                 <p className="text-[11px] text-muted-foreground">
@@ -114,13 +143,23 @@ function FormBuilder() {
                 </p>
               </div>
               <label className="flex items-center gap-2 text-xs uppercase">
-                <Switch checked={f.visible} onCheckedChange={(v) => update(f.id, { visible: v })} /> Visible
+                <Switch checked={f.visible} onCheckedChange={(v) => update(f.id, { visible: v })} />{" "}
+                Visible
               </label>
               <label className="flex items-center gap-2 text-xs uppercase">
-                <Switch checked={f.required} onCheckedChange={(v) => update(f.id, { required: v })} /> Required
+                <Switch
+                  checked={f.required}
+                  onCheckedChange={(v) => update(f.id, { required: v })}
+                />{" "}
+                Required
               </label>
               {!f.is_core && (
-                <Button size="icon" variant="ghost" onClick={() => remove(f.id)} title="Delete field">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => remove(f.id)}
+                  title="Delete field"
+                >
                   <Trash2 className="size-4 text-red-300" />
                 </Button>
               )}

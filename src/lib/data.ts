@@ -32,7 +32,11 @@ export function useAuditTrail(deviationId?: string) {
   return useQuery({
     queryKey: ["audit", deviationId ?? "all"],
     queryFn: async () => {
-      let q = supabase.from("audit_trail").select("*").order("created_at", { ascending: false }).limit(500);
+      let q = supabase
+        .from("audit_trail")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(500);
       if (deviationId) q = q.eq("deviation_id", deviationId);
       const { data, error } = await q;
       if (error) throw error;

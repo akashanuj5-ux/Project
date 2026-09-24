@@ -1,13 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  Outlet,
-  Link,
-  createRootRouteWithContext,
-  useRouter,
-  HeadContent,
-  Scripts,
-} from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { Outlet, Link, createRootRouteWithContext, useRouter } from "@tanstack/react-router";
+import { useEffect } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -83,12 +76,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "Routing Deviation & ECO Approval" },
       {
         name: "description",
-        content: "Shop floor routing deviation logging, floor and PPC approval, ECO issue and Fusion ERP sync.",
+        content:
+          "Shop floor routing deviation logging, floor and PPC approval, ECO issue and Fusion ERP sync.",
       },
       { property: "og:title", content: "Routing Deviation & ECO Approval" },
       {
         property: "og:description",
-        content: "Shop floor routing deviation logging, floor and PPC approval, ECO issue and Fusion ERP sync.",
+        content:
+          "Shop floor routing deviation logging, floor and PPC approval, ECO issue and Fusion ERP sync.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -104,25 +99,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
   }),
-  shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
   errorComponent: ErrorComponent,
 });
-
-function RootShell({ children }: { children: ReactNode }) {
-  return (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body className="font-sans">
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  );
-}
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
@@ -138,4 +118,3 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
-

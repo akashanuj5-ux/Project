@@ -63,7 +63,13 @@ function MasterData() {
                     "Department Code": r.dept_code ?? "",
                     "Department Description": r.dept_desc ?? "",
                   })),
-                  ["Item", "Operation Code", "Operation Description", "Department Code", "Department Description"],
+                  [
+                    "Item",
+                    "Operation Code",
+                    "Operation Description",
+                    "Department Code",
+                    "Department Description",
+                  ],
                 ),
               )
             }
@@ -90,7 +96,13 @@ function MasterData() {
         <table className="w-full min-w-[800px] text-sm">
           <thead className="bg-secondary/60 text-[10px] tracking-widest uppercase">
             <tr>
-              {["Item", "Op code", "Operation description", "Dept code", "Department description"].map((h) => (
+              {[
+                "Item",
+                "Op code",
+                "Operation description",
+                "Dept code",
+                "Department description",
+              ].map((h) => (
                 <th key={h} className="px-3 py-2 text-left font-semibold">
                   {h}
                 </th>
@@ -120,7 +132,12 @@ function MasterData() {
       </div>
 
       <div className="mt-4 flex items-center gap-3 text-sm">
-        <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page === 0}
+          onClick={() => setPage((p) => p - 1)}
+        >
           Previous
         </Button>
         <span className="text-muted-foreground">

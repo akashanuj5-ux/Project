@@ -23,7 +23,9 @@ function MyRequests() {
         actions={
           <Button
             variant="outline"
-            onClick={() => downloadCSV("my-requests.csv", toCSV(rows.map(deviationToExportRow), EXPORT_COLUMNS))}
+            onClick={() =>
+              downloadCSV("my-requests.csv", toCSV(rows.map(deviationToExportRow), EXPORT_COLUMNS))
+            }
           >
             <Download className="mr-2 size-4" /> Download CSV
           </Button>
@@ -51,21 +53,30 @@ function MyRequests() {
               <div className="mt-3 grid gap-3 text-sm md:grid-cols-4">
                 <Info label="Supervisor" value={d.supervisor_name} />
                 <Info label="Proposed Operation" value={d.proposed_operation} />
-                <Info label="Next Dept" value={`${d.next_dept_code ?? "-"} ${d.next_dept_desc ?? ""}`} />
+                <Info
+                  label="Next Dept"
+                  value={`${d.next_dept_code ?? "-"} ${d.next_dept_desc ?? ""}`}
+                />
                 <Info label="Change Type" value={d.change_type} />
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-border pt-3 text-xs">
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">Floor (L1)</span>
                   <StatusBadge status={d.floor_status} />
-                  {d.floor_reviewer_name && <span className="text-muted-foreground">by {d.floor_reviewer_name}</span>}
-                  {d.floor_remarks && <span className="text-muted-foreground italic">“{d.floor_remarks}”</span>}
+                  {d.floor_reviewer_name && (
+                    <span className="text-muted-foreground">by {d.floor_reviewer_name}</span>
+                  )}
+                  {d.floor_remarks && (
+                    <span className="text-muted-foreground italic">“{d.floor_remarks}”</span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">PPC (L2)</span>
                   <StatusBadge status={d.ppc_status} />
                   {d.eco_no && <span className="font-semibold text-primary">{d.eco_no}</span>}
-                  {d.ppc_remarks && <span className="text-muted-foreground italic">“{d.ppc_remarks}”</span>}
+                  {d.ppc_remarks && (
+                    <span className="text-muted-foreground italic">“{d.ppc_remarks}”</span>
+                  )}
                 </div>
                 <FusionBadge status={d.fusion_sync} />
               </div>

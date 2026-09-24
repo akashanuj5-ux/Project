@@ -9,7 +9,9 @@ export function StatusBadge({ status, label }: { status: ReviewStatus; label?: s
     NA: "bg-muted text-muted-foreground border-border",
   };
   return (
-    <span className={`inline-flex rounded border px-2 py-0.5 text-[11px] font-semibold tracking-wide uppercase ${styles[status]}`}>
+    <span
+      className={`inline-flex rounded border px-2 py-0.5 text-[11px] font-semibold tracking-wide uppercase ${styles[status]}`}
+    >
       {label ?? status.replace("_", " ")}
     </span>
   );
@@ -23,7 +25,9 @@ export function AgeBadge({ since }: { since: string }) {
     critical: "bg-red-500/15 text-red-300 border-red-500/30",
   } as const;
   return (
-    <span className={`inline-flex rounded border px-2 py-0.5 text-[11px] font-semibold tabular-nums ${styles[sev]}`}>
+    <span
+      className={`inline-flex rounded border px-2 py-0.5 text-[11px] font-semibold tabular-nums ${styles[sev]}`}
+    >
       {formatAge(since)}
     </span>
   );
@@ -49,7 +53,15 @@ export function FusionBadge({ status }: { status: SyncStatus }) {
   );
 }
 
-export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: React.ReactNode }) {
+export function PageHeader({
+  title,
+  subtitle,
+  actions,
+}: {
+  title: string;
+  subtitle?: string;
+  actions?: React.ReactNode;
+}) {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
       <div>

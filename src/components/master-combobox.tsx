@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useMasterSuggestions, type LookupKind, type LookupMode } from "@/lib/master";
@@ -32,12 +32,25 @@ export function MasterCombobox({
   minChars = 0,
 }: Props) {
   const [open, setOpen] = useState(false);
-  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const ready = value.trim().length >= minChars;
   const { data, isFetching } = useMasterSuggestions(kind, value, open && ready, mode);
 
+  useEffect(() => {
+    function onPointerDown(event: MouseEvent) {
+      const target = event.target as Node | null;
+      if (!containerRef.current || !target || containerRef.current.contains(target)) return;
+      setOpen(false);
+    }
+
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, []);
+
+  const closeList = () => setOpen(false);
+
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
       <div className="relative">
         <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -53,9 +66,6 @@ export function MasterCombobox({
             onChange(e.target.value);
             setOpen(true);
           }}
-          onBlur={() => {
-            blurTimer.current = setTimeout(() => setOpen(false), 150);
-          }}
         />
         {isFetching && open && (
           <Loader2 className="absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 animate-spin text-muted-foreground" />
@@ -63,7 +73,9 @@ export function MasterCombobox({
       </div>
 
       {open && !ready && (
-        <p className="mt-1 text-[11px] text-muted-foreground">Type at least {minChars} characters for suggestions</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Type at least {minChars} characters for suggestions
+        </p>
       )}
 
       {open && ready && (data?.length ?? 0) > 0 && (
@@ -78,8 +90,7 @@ export function MasterCombobox({
                   onChange(s.value);
                   onPick?.(s.value, s.pair ?? null);
                   onPickRow?.(s.row);
-                  if (blurTimer.current) clearTimeout(blurTimer.current);
-                  setOpen(false);
+                  closeList();
                 }}
               >
                 <span className="font-medium">{s.value}</span>

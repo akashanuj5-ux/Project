@@ -14,7 +14,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const Route = createFileRoute("/_authenticated/new-deviation")({
   component: NewDeviation,
@@ -49,7 +55,9 @@ function NewDeviation() {
   const req = (key: string) => cfg(key)?.required ?? false;
   const labelFor = (key: string, fallback: string) => cfg(key)?.label ?? fallback;
   const customFields = fields.filter((f) => !f.is_core && f.visible);
-  const changeOptions = cfg("change_type")?.options?.length ? cfg("change_type")!.options : [...CHANGE_TYPES];
+  const changeOptions = cfg("change_type")?.options?.length
+    ? cfg("change_type")!.options
+    : [...CHANGE_TYPES];
 
   const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
@@ -113,7 +121,11 @@ function NewDeviation() {
         remarks: form.remarks || null,
         custom_fields: custom,
       };
-      const { data, error } = await supabase.from("deviations").insert(payload).select("id, ticket_no").single();
+      const { data, error } = await supabase
+        .from("deviations")
+        .insert(payload)
+        .select("id, ticket_no")
+        .single();
       if (error) throw error;
       await logAudit({
         deviation_id: (data as { id: string }).id,
@@ -153,7 +165,10 @@ function NewDeviation() {
 
         {visible("item_name") && (
           <Field label={labelFor("item_name", "Item Name")} required={req("item_name")}>
-            <TextControl fieldKey="item_name" placeholder="Type to search item codes from master data" />
+            <TextControl
+              fieldKey="item_name"
+              placeholder="Type to search item codes from master data"
+            />
           </Field>
         )}
 
@@ -170,7 +185,10 @@ function NewDeviation() {
             </Field>
           )}
           {visible("last_operation_name") && (
-            <Field label={labelFor("last_operation_name", "Last Operation Name")} required={req("last_operation_name")}>
+            <Field
+              label={labelFor("last_operation_name", "Last Operation Name")}
+              required={req("last_operation_name")}
+            >
               <TextControl fieldKey="last_operation_name" placeholder="Operation description" />
             </Field>
           )}
@@ -178,12 +196,18 @@ function NewDeviation() {
 
         <div className="grid gap-5 md:grid-cols-2">
           {visible("next_dept_code") && (
-            <Field label={labelFor("next_dept_code", "Next Department Code")} required={req("next_dept_code")}>
+            <Field
+              label={labelFor("next_dept_code", "Next Department Code")}
+              required={req("next_dept_code")}
+            >
               <TextControl fieldKey="next_dept_code" placeholder="e.g. DP06" />
             </Field>
           )}
           {visible("next_dept_desc") && (
-            <Field label={labelFor("next_dept_desc", "Next Department Description")} required={req("next_dept_desc")}>
+            <Field
+              label={labelFor("next_dept_desc", "Next Department Description")}
+              required={req("next_dept_desc")}
+            >
               <TextControl fieldKey="next_dept_desc" placeholder="e.g. Metal Assembly Shop" />
             </Field>
           )}
@@ -202,7 +226,10 @@ function NewDeviation() {
             </Field>
           )}
           {visible("next_op_code") && (
-            <Field label={labelFor("next_op_code", "Next Operation Code")} required={req("next_op_code")}>
+            <Field
+              label={labelFor("next_op_code", "Next Operation Code")}
+              required={req("next_op_code")}
+            >
               <TextControl fieldKey="next_op_code" placeholder="e.g. O024" />
             </Field>
           )}
@@ -213,13 +240,19 @@ function NewDeviation() {
             label={labelFor("proposed_operation", "Proposed Operation (Need to Change in Routing)")}
             required={req("proposed_operation")}
           >
-            <TextControl fieldKey="proposed_operation" placeholder="Pick a master operation or type free text" />
+            <TextControl
+              fieldKey="proposed_operation"
+              placeholder="Pick a master operation or type free text"
+            />
           </Field>
         )}
 
         <div className="grid gap-5 md:grid-cols-2">
           {visible("movement_date") && (
-            <Field label={labelFor("movement_date", "Movement Date")} required={req("movement_date")}>
+            <Field
+              label={labelFor("movement_date", "Movement Date")}
+              required={req("movement_date")}
+            >
               <Input
                 type="date"
                 value={form.movement_date}
@@ -269,7 +302,11 @@ function NewDeviation() {
         ))}
 
         <Button type="submit" size="lg" disabled={busy} className="w-full md:w-auto">
-          {busy ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Send className="mr-2 size-4" />}
+          {busy ? (
+            <Loader2 className="mr-2 size-4 animate-spin" />
+          ) : (
+            <Send className="mr-2 size-4" />
+          )}
           Submit Routing Deviation
         </Button>
       </form>
@@ -277,7 +314,15 @@ function NewDeviation() {
   );
 }
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Field({
+  label,
+  required,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-1.5">
       <Label className="text-xs font-semibold tracking-wide uppercase">
@@ -300,7 +345,8 @@ export function CustomField({
   onPickRow?: (row: Partial<MasterRow>) => void;
 }) {
   const lookupColumn = field.lookup_enabled
-    ? ((field.lookup_column ?? (field.field_type === "item_lookup" ? "item" : null)) as LookupKind | null)
+    ? ((field.lookup_column ??
+        (field.field_type === "item_lookup" ? "item" : null)) as LookupKind | null)
     : field.field_type === "item_lookup"
       ? ("item" as LookupKind)
       : null;
@@ -318,7 +364,12 @@ export function CustomField({
           required={field.required}
         />
       ) : field.field_type === "textarea" ? (
-        <Textarea rows={3} value={value} required={field.required} onChange={(e) => onChange(e.target.value)} />
+        <Textarea
+          rows={3}
+          value={value}
+          required={field.required}
+          onChange={(e) => onChange(e.target.value)}
+        />
       ) : field.field_type === "select" ? (
         <Select value={value} onValueChange={onChange}>
           <SelectTrigger>
@@ -334,7 +385,9 @@ export function CustomField({
         </Select>
       ) : (
         <Input
-          type={field.field_type === "number" ? "number" : field.field_type === "date" ? "date" : "text"}
+          type={
+            field.field_type === "number" ? "number" : field.field_type === "date" ? "date" : "text"
+          }
           value={value}
           required={field.required}
           onChange={(e) => onChange(e.target.value)}

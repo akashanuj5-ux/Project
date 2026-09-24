@@ -27,7 +27,7 @@ function AuditLog() {
                 "audit-trail.csv",
                 toCSV(
                   entries.map((e) => ({
-                    "When": new Date(e.created_at).toLocaleString(),
+                    When: new Date(e.created_at).toLocaleString(),
                     Ticket: ticketOf(e.deviation_id),
                     Action: e.action,
                     By: e.actor_name,
@@ -60,7 +60,9 @@ function AuditLog() {
                 <span className="text-muted-foreground">
                   {e.actor_name} ({e.actor_role || "—"})
                 </span>
-                <span className="ml-auto text-xs text-muted-foreground">{new Date(e.created_at).toLocaleString()}</span>
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {new Date(e.created_at).toLocaleString()}
+                </span>
               </div>
               {e.remarks && <p className="mt-1 text-muted-foreground italic">“{e.remarks}”</p>}
               {e.changes?.length > 0 && (

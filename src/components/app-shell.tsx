@@ -18,7 +18,13 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { ROLE_LABELS, type AppRole } from "@/lib/types";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 
 interface NavItem {
@@ -29,10 +35,20 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["ADMIN", "FLOOR_MANAGER", "PPC_REVIEWER", "VIEWER", "REQUESTER"] },
+  {
+    to: "/dashboard",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+    roles: ["ADMIN", "FLOOR_MANAGER", "PPC_REVIEWER", "VIEWER", "REQUESTER"],
+  },
   { to: "/new-deviation", label: "New Deviation", icon: PlusCircle, roles: ["ADMIN", "REQUESTER"] },
   { to: "/my-requests", label: "My Requests", icon: ClipboardList, roles: ["ADMIN", "REQUESTER"] },
-  { to: "/floor-review", label: "Floor Review", icon: ListChecks, roles: ["ADMIN", "FLOOR_MANAGER"] },
+  {
+    to: "/floor-review",
+    label: "Floor Review",
+    icon: ListChecks,
+    roles: ["ADMIN", "FLOOR_MANAGER"],
+  },
   { to: "/ppc-review", label: "PPC Review", icon: ShieldCheck, roles: ["ADMIN", "PPC_REVIEWER"] },
   { to: "/master-data", label: "Master Data", icon: Building2, roles: ["ADMIN"] },
   { to: "/form-builder", label: "Form Builder", icon: SlidersHorizontal, roles: ["ADMIN"] },
@@ -66,7 +82,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             <p className="truncate font-display text-base leading-tight font-bold tracking-wide uppercase">
               Routing Deviation
             </p>
-            <p className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase">ECO Workflow</p>
+            <p className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase">
+              ECO Workflow
+            </p>
           </div>
         </div>
 
@@ -136,9 +154,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 md:hidden">
           <div className="flex items-center gap-2">
             <FileStack className="size-5 text-primary" />
-            <span className="font-display font-bold tracking-wide uppercase">Routing Deviation</span>
+            <span className="font-display font-bold tracking-wide uppercase">
+              Routing Deviation
+            </span>
           </div>
-          <Select value={activeRole ?? undefined} onValueChange={(v) => setActiveRole(v as AppRole)}>
+          <Select
+            value={activeRole ?? undefined}
+            onValueChange={(v) => setActiveRole(v as AppRole)}
+          >
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Role" />
             </SelectTrigger>
