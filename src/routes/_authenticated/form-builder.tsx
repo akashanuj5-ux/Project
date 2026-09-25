@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth";
 import { useFormFields } from "@/lib/data";
 import { PageHeader } from "@/components/badges";
 import { Button } from "@/components/ui/button";
@@ -22,9 +23,22 @@ export const Route = createFileRoute("/_authenticated/form-builder")({
   component: FormBuilder,
 });
 
-const TYPES = ["text", "textarea", "number", "date", "select", "item_lookup"];
+const TYPES: { value: string; label: string }[] = [
+  { value: "text", label: "Text" },
+  { value: "textarea", label: "Textarea" },
+  { value: "number", label: "Number" },
+  { value: "date", label: "Date" },
+  { value: "select", label: "Select" },
+  { value: "item_lookup", label: "Item lookup" },
+  { value: "op_code_lookup", label: "Operation Code lookup" },
+  { value: "op_desc_lookup", label: "Operation Description lookup" },
+  { value: "dept_code_lookup", label: "Department Code lookup" },
+  { value: "dept_desc_lookup", label: "Department Description lookup" },
+];
 
 function FormBuilder() {
+  const { canView, can } = useAuth();
+  const canEdit = can("formBuilder", "canEdit");
   const { data: fields = [], isLoading } = useFormFields();
   const queryClient = useQueryClient();
   const [label, setLabel] = useState("");
@@ -75,6 +89,14 @@ function FormBuilder() {
     await refresh();
   }
 
+  if (!canView("formBuilder")) {
+    return (
+      <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+        You do not have access to this page.
+      </p>
+    );
+  }
+
   return (
     <div className="max-w-4xl">
       <PageHeader
@@ -102,15 +124,15 @@ function FormBuilder() {
             </SelectTrigger>
             <SelectContent>
               {TYPES.map((t) => (
-                <SelectItem key={t} value={t}>
-                  {t.replace("_", " ")}
+                <SelectItem key={t.value} value={t.value}>
+                  {t.label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <div className="flex items-end">
-          <Button type="submit" className="w-full">
+          <Button type="submit" className="w-full" disabled={!canEdit}>
             <Plus className="mr-2 size-4" /> Add field
           </Button>
         </div>
@@ -133,7 +155,7 @@ function FormBuilder() {
           {fields.map((f) => (
             <div
               key={f.id}
-              className="flex flex-wrap items-center gap-4 rounded-lg border border-border bg-card p-3"
+              className="flex min-h-[84px] flex-wrap items-center gap-4 rounded-lg border border-border bg-card p-3"
             >
               <div className="min-w-48 flex-1">
                 <p className="font-medium">{f.label}</p>
@@ -143,11 +165,16 @@ function FormBuilder() {
                 </p>
               </div>
               <label className="flex items-center gap-2 text-xs uppercase">
-                <Switch checked={f.visible} onCheckedChange={(v) => update(f.id, { visible: v })} />{" "}
+                <Switch
+                  disabled={!canEdit}
+                  checked={f.visible}
+                  onCheckedChange={(v) => update(f.id, { visible: v })}
+                />{" "}
                 Visible
               </label>
               <label className="flex items-center gap-2 text-xs uppercase">
                 <Switch
+                  disabled={!canEdit}
                   checked={f.required}
                   onCheckedChange={(v) => update(f.id, { required: v })}
                 />{" "}
@@ -157,6 +184,7 @@ function FormBuilder() {
                 <Button
                   size="icon"
                   variant="ghost"
+                  disabled={!canEdit}
                   onClick={() => remove(f.id)}
                   title="Delete field"
                 >

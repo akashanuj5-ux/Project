@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   Building2,
   ClipboardList,
+  CloudUpload,
   Factory,
   FileStack,
   LayoutDashboard,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import type { PermissionPage } from "@/lib/permissions";
 import { ROLE_LABELS, type AppRole } from "@/lib/types";
 import {
   Select,
@@ -33,6 +35,7 @@ interface NavItem {
   label: string;
   icon: typeof LayoutDashboard;
   roles: AppRole[];
+  page: PermissionPage;
 }
 
 const NAV: NavItem[] = [
@@ -41,35 +44,79 @@ const NAV: NavItem[] = [
     label: "Dashboard",
     icon: LayoutDashboard,
     roles: ["ADMIN", "FLOOR_MANAGER", "PPC_REVIEWER", "VIEWER", "REQUESTER"],
+    page: "dashboard",
   },
-  { to: "/new-deviation", label: "New Deviation", icon: PlusCircle, roles: ["ADMIN", "REQUESTER"] },
-  { to: "/my-requests", label: "My Requests", icon: ClipboardList, roles: ["ADMIN", "REQUESTER"] },
+  {
+    to: "/new-deviation",
+    label: "New Deviation",
+    icon: PlusCircle,
+    roles: ["ADMIN", "REQUESTER"],
+    page: "newDeviation",
+  },
+  {
+    to: "/my-requests",
+    label: "My Requests",
+    icon: ClipboardList,
+    roles: ["ADMIN", "REQUESTER"],
+    page: "myRequests",
+  },
   {
     to: "/floor-review",
     label: "Floor Review",
     icon: ListChecks,
     roles: ["ADMIN", "FLOOR_MANAGER"],
+    page: "floorReview",
   },
-  { to: "/ppc-review", label: "PPC Review", icon: ShieldCheck, roles: ["ADMIN", "PPC_REVIEWER"] },
-  { to: "/master-data", label: "Master Data", icon: Building2, roles: ["ADMIN"] },
-  { to: "/form-builder", label: "Form Builder", icon: SlidersHorizontal, roles: ["ADMIN"] },
-  { to: "/users", label: "User Accounts", icon: UserCog, roles: ["ADMIN"] },
-  { to: "/audit-log", label: "Audit Log", icon: ScrollText, roles: ["ADMIN"] },
+  {
+    to: "/ppc-review",
+    label: "PPC Review",
+    icon: ShieldCheck,
+    roles: ["ADMIN", "PPC_REVIEWER"],
+    page: "ppcReview",
+  },
+  {
+    to: "/oracle-sync",
+    label: "Oracle Sync",
+    icon: CloudUpload,
+    roles: ["ADMIN", "PPC_REVIEWER", "VIEWER"],
+    page: "oracleSync",
+  },
+  {
+    to: "/master-data",
+    label: "Master Data",
+    icon: Building2,
+    roles: ["ADMIN"],
+    page: "masterData",
+  },
+  {
+    to: "/form-builder",
+    label: "Form Builder",
+    icon: SlidersHorizontal,
+    roles: ["ADMIN"],
+    page: "formBuilder",
+  },
+  { to: "/users", label: "User Accounts", icon: UserCog, roles: ["ADMIN"], page: "userAccounts" },
+  { to: "/audit-log", label: "Audit Log", icon: ScrollText, roles: ["ADMIN"], page: "auditLog" },
   {
     to: "/settings",
     label: "Settings",
     icon: Settings2,
     roles: ["ADMIN", "VIEWER", "REQUESTER", "FLOOR_MANAGER", "PPC_REVIEWER"],
+    page: "settings",
   },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { activeRole, setActiveRole, availableRoles, userName, userEmail, isAdmin } = useAuth();
+  const { activeRole, setActiveRole, availableRoles, userName, userEmail, isAdmin, canView } =
+    useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
-  const items = NAV.filter((n) => (activeRole ? n.roles.includes(activeRole) : false));
+  const items = NAV.filter((n) =>
+    Boolean(activeRole && n.roles.includes(activeRole) && canView(n.page)),
+  );
+  const currentPage = NAV.find((item) => item.to === pathname);
 
   async function signOut() {
     await queryClient.cancelQueries();
@@ -191,7 +238,15 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Link>
           ))}
         </div>
-        <main className="flex-1 p-4 md:p-8">{children}</main>
+        <main className="flex-1 p-4 md:p-8">
+          {currentPage && !canView(currentPage.page) ? (
+            <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+              You do not have access to this page.
+            </p>
+          ) : (
+            children
+          )}
+        </main>
       </div>
     </div>
   );

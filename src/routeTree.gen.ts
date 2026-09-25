@@ -19,6 +19,7 @@ import { Route as AuthenticatedFormBuilderRouteImport } from './routes/_authenti
 import { Route as AuthenticatedMasterDataRouteImport } from './routes/_authenticated/master-data'
 import { Route as AuthenticatedMyRequestsRouteImport } from './routes/_authenticated/my-requests'
 import { Route as AuthenticatedNewDeviationRouteImport } from './routes/_authenticated/new-deviation'
+import { Route as AuthenticatedOracleSyncRouteImport } from './routes/_authenticated/oracle-sync'
 import { Route as AuthenticatedPpcReviewRouteImport } from './routes/_authenticated/ppc-review'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedUsersRouteImport } from './routes/_authenticated/users'
@@ -75,6 +76,11 @@ const AuthenticatedNewDeviationRoute =
     path: '/new-deviation',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedOracleSyncRoute = AuthenticatedOracleSyncRouteImport.update({
+  id: '/oracle-sync',
+  path: '/oracle-sync',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedPpcReviewRoute = AuthenticatedPpcReviewRouteImport.update({
   id: '/ppc-review',
   path: '/ppc-review',
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/master-data': typeof AuthenticatedMasterDataRoute
   '/my-requests': typeof AuthenticatedMyRequestsRoute
   '/new-deviation': typeof AuthenticatedNewDeviationRoute
+  '/oracle-sync': typeof AuthenticatedOracleSyncRoute
   '/ppc-review': typeof AuthenticatedPpcReviewRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/users': typeof AuthenticatedUsersRoute
@@ -115,6 +122,7 @@ export interface FileRoutesByTo {
   '/master-data': typeof AuthenticatedMasterDataRoute
   '/my-requests': typeof AuthenticatedMyRequestsRoute
   '/new-deviation': typeof AuthenticatedNewDeviationRoute
+  '/oracle-sync': typeof AuthenticatedOracleSyncRoute
   '/ppc-review': typeof AuthenticatedPpcReviewRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/users': typeof AuthenticatedUsersRoute
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   '/_authenticated/master-data': typeof AuthenticatedMasterDataRoute
   '/_authenticated/my-requests': typeof AuthenticatedMyRequestsRoute
   '/_authenticated/new-deviation': typeof AuthenticatedNewDeviationRoute
+  '/_authenticated/oracle-sync': typeof AuthenticatedOracleSyncRoute
   '/_authenticated/ppc-review': typeof AuthenticatedPpcReviewRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/users': typeof AuthenticatedUsersRoute
@@ -147,6 +156,7 @@ export interface FileRouteTypes {
     | '/master-data'
     | '/my-requests'
     | '/new-deviation'
+    | '/oracle-sync'
     | '/ppc-review'
     | '/settings'
     | '/users'
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
     | '/master-data'
     | '/my-requests'
     | '/new-deviation'
+    | '/oracle-sync'
     | '/ppc-review'
     | '/settings'
     | '/users'
@@ -176,6 +187,7 @@ export interface FileRouteTypes {
     | '/_authenticated/master-data'
     | '/_authenticated/my-requests'
     | '/_authenticated/new-deviation'
+    | '/_authenticated/oracle-sync'
     | '/_authenticated/ppc-review'
     | '/_authenticated/settings'
     | '/_authenticated/users'
@@ -259,6 +271,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedNewDeviationRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/oracle-sync': {
+      id: '/_authenticated/oracle-sync'
+      path: '/oracle-sync'
+      fullPath: '/oracle-sync'
+      preLoaderRoute: typeof AuthenticatedOracleSyncRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/ppc-review': {
       id: '/_authenticated/ppc-review'
       path: '/ppc-review'
@@ -291,6 +310,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedMasterDataRoute: typeof AuthenticatedMasterDataRoute
   AuthenticatedMyRequestsRoute: typeof AuthenticatedMyRequestsRoute
   AuthenticatedNewDeviationRoute: typeof AuthenticatedNewDeviationRoute
+  AuthenticatedOracleSyncRoute: typeof AuthenticatedOracleSyncRoute
   AuthenticatedPpcReviewRoute: typeof AuthenticatedPpcReviewRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedUsersRoute: typeof AuthenticatedUsersRoute
@@ -304,6 +324,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedMasterDataRoute: AuthenticatedMasterDataRoute,
   AuthenticatedMyRequestsRoute: AuthenticatedMyRequestsRoute,
   AuthenticatedNewDeviationRoute: AuthenticatedNewDeviationRoute,
+  AuthenticatedOracleSyncRoute: AuthenticatedOracleSyncRoute,
   AuthenticatedPpcReviewRoute: AuthenticatedPpcReviewRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedUsersRoute: AuthenticatedUsersRoute,

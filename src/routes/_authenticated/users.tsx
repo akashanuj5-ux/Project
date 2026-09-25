@@ -1,13 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth";
 import { useProfiles } from "@/lib/data";
 import { downloadCSV, toCSV } from "@/lib/csv";
-import { ALL_ROLES, ROLE_LABELS, type AppRole } from "@/lib/types";
+import { ALL_ROLES, ROLE_LABELS, type AppRole, type ProfileRow } from "@/lib/types";
 import { PageHeader } from "@/components/badges";
 import { Button } from "@/components/ui/button";
+import { ManagePermissionsDialog } from "@/components/manage-permissions-dialog";
 import {
   Select,
   SelectContent,
@@ -21,12 +24,23 @@ export const Route = createFileRoute("/_authenticated/users")({
 });
 
 function Users() {
+  const { canView, can } = useAuth();
+  const canManage = can("userAccounts", "canManage");
   const { data, isLoading } = useProfiles();
   const queryClient = useQueryClient();
+  const [permissionUser, setPermissionUser] = useState<ProfileRow | null>(null);
   const profiles = data?.profiles ?? [];
   const roles = data?.roles ?? [];
   const roleOf = (id: string) =>
     (roles.find((r) => r.user_id === id)?.role as AppRole | undefined) ?? "REQUESTER";
+
+  if (!canView("userAccounts")) {
+    return (
+      <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+        You do not have access to this page.
+      </p>
+    );
+  }
 
   async function changeRole(userId: string, role: AppRole) {
     const { error: delErr } = await supabase.from("user_roles").delete().eq("user_id", userId);
@@ -107,6 +121,7 @@ function Users() {
                     <Select
                       value={roleOf(p.id)}
                       onValueChange={(v) => changeRole(p.id, v as AppRole)}
+                      disabled={!canManage}
                     >
                       <SelectTrigger className="w-52">
                         <SelectValue />
@@ -129,9 +144,18 @@ function Users() {
                     <Button
                       size="sm"
                       variant="outline"
+                      disabled={!canManage}
                       onClick={() => toggleActive(p.id, p.is_active)}
                     >
                       {p.is_active ? "Deactivate" : "Reactivate"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!canManage}
+                      onClick={() => setPermissionUser(p)}
+                    >
+                      Permissions
                     </Button>
                   </td>
                 </tr>
@@ -139,6 +163,16 @@ function Users() {
             </tbody>
           </table>
         </div>
+      )}
+      {permissionUser && (
+        <ManagePermissionsDialog
+          profile={permissionUser}
+          role={roleOf(permissionUser.id)}
+          open={Boolean(permissionUser)}
+          onOpenChange={(open) => {
+            if (!open) setPermissionUser(null);
+          }}
+        />
       )}
     </div>
   );

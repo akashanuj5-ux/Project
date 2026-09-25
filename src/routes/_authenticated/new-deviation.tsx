@@ -41,9 +41,29 @@ const empty: Record<string, string> = {
   remarks: "",
 };
 
+const lookupColumnForKey = (fieldKey: string): LookupKind | null => {
+  switch (fieldKey) {
+    case "item_name":
+      return "item";
+    case "last_operation_name":
+      return "op_desc";
+    case "next_dept_code":
+      return "dept_code";
+    case "next_dept_desc":
+      return "dept_desc";
+    case "next_op_code":
+      return "op_code";
+    case "proposed_operation":
+      return "op_desc";
+    default:
+      return null;
+  }
+};
+
 function NewDeviation() {
   const { data: fields = [] } = useFormFields();
-  const { session, userName, userEmail, activeRole } = useAuth();
+  const { session, userName, userEmail, activeRole, canView, can } = useAuth();
+  const canSubmit = can("newDeviation", "canSubmit");
   const [form, setForm] = useState<Record<string, string>>({ ...empty });
   const [custom, setCustom] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -71,32 +91,6 @@ function NewDeviation() {
     const value = row[field.autofill_source];
     if (value) applyValue(field.autofill_target, String(value));
   };
-
-  function TextControl({ fieldKey, placeholder }: { fieldKey: string; placeholder?: string }) {
-    const f = cfg(fieldKey);
-    if (f?.lookup_enabled && f.lookup_column) {
-      return (
-        <MasterCombobox
-          kind={f.lookup_column as LookupKind}
-          value={form[fieldKey] ?? ""}
-          onChange={(v) => set(fieldKey, v)}
-          onPickRow={(row) => autofill(f, row)}
-          mode={(f.lookup_mode as LookupMode) ?? "prefix"}
-          minChars={f.lookup_min_chars ?? 0}
-          required={req(fieldKey)}
-          placeholder={placeholder}
-        />
-      );
-    }
-    return (
-      <Input
-        value={form[fieldKey] ?? ""}
-        required={req(fieldKey)}
-        placeholder={placeholder}
-        onChange={(e) => set(fieldKey, e.target.value)}
-      />
-    );
-  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -146,6 +140,14 @@ function NewDeviation() {
     }
   }
 
+  if (!canView("newDeviation")) {
+    return (
+      <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+        You do not have access to this page.
+      </p>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-4xl">
       <PageHeader
@@ -159,7 +161,15 @@ function NewDeviation() {
             label={labelFor("supervisor_name", "Supervisor Name (Prod. Transit Control)")}
             required={req("supervisor_name")}
           >
-            <TextControl fieldKey="supervisor_name" placeholder="e.g. S. Kulkarni" />
+            <TextControl
+              fieldKey="supervisor_name"
+              placeholder="e.g. S. Kulkarni"
+              form={form}
+              setValue={set}
+              cfg={cfg}
+              req={req}
+              autofill={autofill}
+            />
           </Field>
         )}
 
@@ -168,6 +178,11 @@ function NewDeviation() {
             <TextControl
               fieldKey="item_name"
               placeholder="Type to search item codes from master data"
+              form={form}
+              setValue={set}
+              cfg={cfg}
+              req={req}
+              autofill={autofill}
             />
           </Field>
         )}
@@ -189,7 +204,15 @@ function NewDeviation() {
               label={labelFor("last_operation_name", "Last Operation Name")}
               required={req("last_operation_name")}
             >
-              <TextControl fieldKey="last_operation_name" placeholder="Operation description" />
+              <TextControl
+                fieldKey="last_operation_name"
+                placeholder="Operation description"
+                form={form}
+                setValue={set}
+                cfg={cfg}
+                req={req}
+                autofill={autofill}
+              />
             </Field>
           )}
         </div>
@@ -200,7 +223,15 @@ function NewDeviation() {
               label={labelFor("next_dept_code", "Next Department Code")}
               required={req("next_dept_code")}
             >
-              <TextControl fieldKey="next_dept_code" placeholder="e.g. DP06" />
+              <TextControl
+                fieldKey="next_dept_code"
+                placeholder="e.g. DP06"
+                form={form}
+                setValue={set}
+                cfg={cfg}
+                req={req}
+                autofill={autofill}
+              />
             </Field>
           )}
           {visible("next_dept_desc") && (
@@ -208,7 +239,15 @@ function NewDeviation() {
               label={labelFor("next_dept_desc", "Next Department Description")}
               required={req("next_dept_desc")}
             >
-              <TextControl fieldKey="next_dept_desc" placeholder="e.g. Metal Assembly Shop" />
+              <TextControl
+                fieldKey="next_dept_desc"
+                placeholder="e.g. Metal Assembly Shop"
+                form={form}
+                setValue={set}
+                cfg={cfg}
+                req={req}
+                autofill={autofill}
+              />
             </Field>
           )}
         </div>
@@ -230,7 +269,15 @@ function NewDeviation() {
               label={labelFor("next_op_code", "Next Operation Code")}
               required={req("next_op_code")}
             >
-              <TextControl fieldKey="next_op_code" placeholder="e.g. O024" />
+              <TextControl
+                fieldKey="next_op_code"
+                placeholder="e.g. O024"
+                form={form}
+                setValue={set}
+                cfg={cfg}
+                req={req}
+                autofill={autofill}
+              />
             </Field>
           )}
         </div>
@@ -243,6 +290,11 @@ function NewDeviation() {
             <TextControl
               fieldKey="proposed_operation"
               placeholder="Pick a master operation or type free text"
+              form={form}
+              setValue={set}
+              cfg={cfg}
+              req={req}
+              autofill={autofill}
             />
           </Field>
         )}
@@ -301,7 +353,7 @@ function NewDeviation() {
           />
         ))}
 
-        <Button type="submit" size="lg" disabled={busy} className="w-full md:w-auto">
+        <Button type="submit" size="lg" disabled={busy || !canSubmit} className="w-full md:w-auto">
           {busy ? (
             <Loader2 className="mr-2 size-4 animate-spin" />
           ) : (
@@ -311,6 +363,54 @@ function NewDeviation() {
         </Button>
       </form>
     </div>
+  );
+}
+
+function TextControl({
+  fieldKey,
+  placeholder,
+  form,
+  setValue,
+  cfg,
+  req,
+  autofill,
+}: {
+  fieldKey: string;
+  placeholder?: string;
+  form: Record<string, string>;
+  setValue: (key: string, value: string) => void;
+  cfg: (key: string) => FormField | undefined;
+  req: (key: string) => boolean;
+  autofill: (field: FormField | undefined, row: Partial<MasterRow>) => void;
+}) {
+  const f = cfg(fieldKey);
+  const lookupKey =
+    f?.lookup_enabled && f.lookup_column
+      ? (f.lookup_column as LookupKind)
+      : lookupColumnForKey(fieldKey);
+
+  if (lookupKey) {
+    return (
+      <MasterCombobox
+        kind={lookupKey}
+        value={form[fieldKey] ?? ""}
+        onChange={(v) => setValue(fieldKey, v)}
+        onPickRow={(row) => autofill(f, row)}
+        mode={(f?.lookup_mode as LookupMode) ?? "prefix"}
+        minChars={f?.lookup_min_chars ?? 0}
+        required={req(fieldKey)}
+        placeholder={placeholder}
+      />
+    );
+  }
+
+  return (
+    <Input
+      value={form[fieldKey] ?? ""}
+      required={req(fieldKey)}
+      placeholder={placeholder}
+      onChange={(e) => setValue(fieldKey, e.target.value)}
+    />
   );
 }
 
@@ -346,10 +446,28 @@ export function CustomField({
 }) {
   const lookupColumn = field.lookup_enabled
     ? ((field.lookup_column ??
-        (field.field_type === "item_lookup" ? "item" : null)) as LookupKind | null)
+        (field.field_type === "item_lookup"
+          ? "item"
+          : field.field_type === "op_code_lookup"
+            ? "op_code"
+            : field.field_type === "op_desc_lookup"
+              ? "op_desc"
+              : field.field_type === "dept_code_lookup"
+                ? "dept_code"
+                : field.field_type === "dept_desc_lookup"
+                  ? "dept_desc"
+                  : null)) as LookupKind | null)
     : field.field_type === "item_lookup"
       ? ("item" as LookupKind)
-      : null;
+      : field.field_type === "op_code_lookup"
+        ? ("op_code" as LookupKind)
+        : field.field_type === "op_desc_lookup"
+          ? ("op_desc" as LookupKind)
+          : field.field_type === "dept_code_lookup"
+            ? ("dept_code" as LookupKind)
+            : field.field_type === "dept_desc_lookup"
+              ? ("dept_desc" as LookupKind)
+              : null;
 
   return (
     <Field label={field.label} required={field.required}>

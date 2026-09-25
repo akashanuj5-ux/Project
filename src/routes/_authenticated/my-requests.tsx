@@ -1,10 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Download, Lock } from "lucide-react";
+import { useState } from "react";
+import { Lock } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useDeviations, deviationToExportRow, EXPORT_COLUMNS } from "@/lib/data";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { AgeBadge, FusionBadge, PageHeader, StatusBadge } from "@/components/badges";
-import { Button } from "@/components/ui/button";
+import {
+  TicketFilters,
+  emptyTicketFilters,
+  filterDeviationRows,
+  type TicketFilterState,
+} from "@/components/TicketFilters";
 
 export const Route = createFileRoute("/_authenticated/my-requests")({
   component: MyRequests,
@@ -13,22 +19,23 @@ export const Route = createFileRoute("/_authenticated/my-requests")({
 function MyRequests() {
   const { session } = useAuth();
   const { data: all = [], isLoading } = useDeviations();
-  const rows = all.filter((d) => d.requester_id === session?.user.id);
+  const [filters, setFilters] = useState<TicketFilterState>(emptyTicketFilters);
+  const mine = all.filter((d) => d.requester_id === session?.user.id);
+  const rows = filterDeviationRows(mine, filters);
 
   return (
     <div>
       <PageHeader
         title="My Requests"
         subtitle="Your submitted deviations. Submissions are read-only once logged."
-        actions={
-          <Button
-            variant="outline"
-            onClick={() =>
-              downloadCSV("my-requests.csv", toCSV(rows.map(deviationToExportRow), EXPORT_COLUMNS))
-            }
-          >
-            <Download className="mr-2 size-4" /> Download CSV
-          </Button>
+      />
+
+      <TicketFilters
+        filters={filters}
+        onChange={(patch) => setFilters((current) => ({ ...current, ...patch }))}
+        showStages
+        onExport={() =>
+          downloadCSV("my-requests.csv", toCSV(rows.map(deviationToExportRow), EXPORT_COLUMNS))
         }
       />
 
@@ -78,7 +85,7 @@ function MyRequests() {
                     <span className="text-muted-foreground italic">“{d.ppc_remarks}”</span>
                   )}
                 </div>
-                <FusionBadge status={d.fusion_sync} />
+                <FusionBadge status={d.fusion_sync} hasEco={Boolean(d.eco_no)} />
               </div>
             </div>
           ))}

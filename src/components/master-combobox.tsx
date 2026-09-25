@@ -33,6 +33,7 @@ export function MasterCombobox({
 }: Props) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const ready = value.trim().length >= minChars;
   const { data, isFetching } = useMasterSuggestions(kind, value, open && ready, mode);
 
@@ -54,6 +55,7 @@ export function MasterCombobox({
       <div className="relative">
         <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
+          ref={inputRef}
           id={id}
           value={value}
           required={required}
@@ -62,6 +64,11 @@ export function MasterCombobox({
           placeholder={placeholder}
           className="pl-8"
           onFocus={() => setOpen(true)}
+          onBlur={(e) => {
+            const nextTarget = e.relatedTarget as Node | null;
+            if (nextTarget && containerRef.current?.contains(nextTarget)) return;
+            setOpen(false);
+          }}
           onChange={(e) => {
             onChange(e.target.value);
             setOpen(true);

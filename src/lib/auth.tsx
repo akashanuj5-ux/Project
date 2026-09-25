@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { AppRole, ProfileRow } from "./types";
+import { mergePermissions, type PermissionPage, type UserPermissions } from "./permissions";
 
 interface AuthValue {
   session: Session | null;
@@ -15,6 +16,9 @@ interface AuthValue {
   availableRoles: AppRole[];
   userName: string;
   userEmail: string;
+  permissions: UserPermissions;
+  canView: (page: PermissionPage) => boolean;
+  can: (page: PermissionPage, action: string) => boolean;
 }
 
 const AuthContext = createContext<AuthValue | null>(null);
@@ -83,6 +87,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setActiveRoleState(r);
   };
 
+  const permissions = useMemo(
+    () => mergePermissions(activeRole, data?.profile?.permissions),
+    [activeRole, data?.profile?.permissions],
+  );
+
   const value: AuthValue = {
     session,
     loading,
@@ -94,6 +103,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     availableRoles,
     userName: data?.profile?.full_name || session?.user.email?.split("@")[0] || "User",
     userEmail: data?.profile?.email || session?.user.email || "",
+    permissions,
+    canView: (page) => permissions[page].canView,
+    can: (page, action) =>
+      Boolean(permissions[page][action as keyof (typeof permissions)[typeof page]]),
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

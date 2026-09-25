@@ -5,6 +5,7 @@ import { Download, Plus, Search, Trash2, Upload } from "lucide-react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { useDebounced } from "@/lib/master";
 import type { MasterRow } from "@/lib/types";
@@ -19,6 +20,8 @@ export const Route = createFileRoute("/_authenticated/master-data")({
 const PAGE = 50;
 
 function MasterData() {
+  const { canView, can } = useAuth();
+  const canEdit = can("masterData", "canEdit");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(0);
   const [manualRow, setManualRow] = useState({
@@ -54,16 +57,20 @@ function MasterData() {
   const rows = data?.rows ?? [];
   const count = data?.count ?? 0;
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["master-page"] });
+  const refresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["master-page"] });
+    await queryClient.invalidateQueries({ queryKey: ["master-search"] });
+    await queryClient.invalidateQueries({ queryKey: ["master-catalog"] });
+  };
 
   const addRows = useMutation({
     mutationFn: async (newRows: Array<Omit<MasterRow, "id">>) => {
       const { error } = await supabase.from("master_routing").insert(newRows);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       setManualRow({ item: "", op_code: "", op_desc: "", dept_code: "", dept_desc: "" });
-      refresh();
+      await refresh();
       toast.success("Master data added");
     },
     onError: (error) => toast.error(`Could not add master data: ${error.message}`),
@@ -74,8 +81,8 @@ function MasterData() {
       const { error } = await supabase.from("master_routing").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      refresh();
+    onSuccess: async () => {
+      await refresh();
       toast.success("Master data deleted");
     },
     onError: (error) => toast.error(`Could not delete master data: ${error.message}`),
@@ -100,7 +107,6 @@ function MasterData() {
         dept_code: indexOf(["department code", "dept code", "dept_code"]),
         dept_desc: indexOf(["department description", "dept desc", "dept_desc"]),
       };
-      if (indexes.item < 0) throw new Error("The file must include an Item column");
       const parsed = values
         .slice(1)
         .map((row) => ({
@@ -110,8 +116,8 @@ function MasterData() {
           dept_code: cell(row, indexes.dept_code),
           dept_desc: cell(row, indexes.dept_desc),
         }))
-        .filter((row) => row.item);
-      if (parsed.length === 0) throw new Error("The file contains no rows with an Item value");
+        .filter((row) => Object.values(row).some((value) => value !== null));
+      if (parsed.length === 0) throw new Error("The file contains no populated master-data rows");
       if (replace) {
         const { error: deleteError } = await supabase
           .from("master_routing")
@@ -123,8 +129,8 @@ function MasterData() {
       if (error) throw error;
       return parsed.length;
     },
-    onSuccess: (numberOfRows, variables) => {
-      refresh();
+    onSuccess: async (numberOfRows, variables) => {
+      await refresh();
       toast.success(
         `${numberOfRows.toLocaleString()} rows ${variables.replace ? "replaced" : "added"}`,
       );
@@ -143,6 +149,14 @@ function MasterData() {
     };
     input.click();
   };
+
+  if (!canView("masterData")) {
+    return (
+      <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+        You do not have access to this page.
+      </p>
+    );
+  }
 
   return (
     <div>
@@ -201,8 +215,20 @@ function MasterData() {
             ))}
             <Button
               className="sm:col-span-2"
-              disabled={!manualRow.item.trim() || addRows.isPending}
-              onClick={() => addRows.mutate({ ...manualRow, item: manualRow.item.trim() })}
+              disabled={
+                !canEdit ||
+                !Object.values(manualRow).some((value) => value.trim()) ||
+                addRows.isPending
+              }
+              onClick={() =>
+                addRows.mutate({
+                  item: manualRow.item.trim() || null,
+                  op_code: manualRow.op_code.trim() || null,
+                  op_desc: manualRow.op_desc.trim() || null,
+                  dept_code: manualRow.dept_code.trim() || null,
+                  dept_desc: manualRow.dept_desc.trim() || null,
+                })
+              }
             >
               <Plus className="mr-2 size-4" /> Add
             </Button>
@@ -218,12 +244,12 @@ function MasterData() {
             Description.
           </p>
           <div className="flex flex-wrap gap-2">
-            <Button disabled={importRows.isPending} onClick={() => chooseFile(false)}>
+            <Button disabled={!canEdit || importRows.isPending} onClick={() => chooseFile(false)}>
               <Upload className="mr-2 size-4" /> Add to existing
             </Button>
             <Button
               variant="outline"
-              disabled={importRows.isPending}
+              disabled={!canEdit || importRows.isPending}
               onClick={() => chooseFile(true)}
             >
               <Upload className="mr-2 size-4" /> Replace all
@@ -282,7 +308,7 @@ function MasterData() {
                       variant="ghost"
                       size="icon"
                       title="Delete row"
-                      disabled={deleteRow.isPending}
+                      disabled={!canEdit || deleteRow.isPending}
                       onClick={() => deleteRow.mutate(r.id)}
                     >
                       <Trash2 className="size-4 text-destructive" />

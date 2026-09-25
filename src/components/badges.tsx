@@ -1,4 +1,4 @@
-import { CloudCheck, CloudOff } from "lucide-react";
+import { CloudCheck, UploadCloud } from "lucide-react";
 import { ageSeverity, formatAge, type ReviewStatus, type SyncStatus } from "@/lib/types";
 
 export function StatusBadge({ status, label }: { status: ReviewStatus; label?: string }) {
@@ -33,22 +33,17 @@ export function AgeBadge({ since }: { since: string }) {
   );
 }
 
-export function FusionBadge({ status }: { status: SyncStatus }) {
+export function FusionBadge({ status, hasEco = true }: { status: SyncStatus; hasEco?: boolean }) {
+  if (!hasEco) return <span className="text-muted-foreground">—</span>;
   if (status === "SYNCED")
     return (
       <span className="inline-flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-300">
         <CloudCheck className="size-3" /> Fusion synced
       </span>
     );
-  if (status === "FAILED")
-    return (
-      <span className="inline-flex items-center gap-1 rounded border border-red-500/30 bg-red-500/15 px-2 py-0.5 text-[11px] font-semibold text-red-300">
-        <CloudOff className="size-3" /> Sync failed
-      </span>
-    );
   return (
-    <span className="inline-flex items-center gap-1 rounded border border-border bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
-      <CloudOff className="size-3" /> Not synced
+    <span className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-300">
+      <UploadCloud className="size-3" /> Raised
     </span>
   );
 }

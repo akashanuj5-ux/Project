@@ -27,16 +27,17 @@ export const CHANGE_TYPES = [
 
 export interface MasterRow {
   id: string;
-  item: string;
+  item: string | null;
   op_code: string | null;
   op_desc: string | null;
   dept_code: string | null;
   dept_desc: string | null;
 }
 
-export type MasterColumn = "item" | "op_code" | "op_desc" | "dept_code" | "dept_desc";
+export type MasterColumn = "all" | "item" | "op_code" | "op_desc" | "dept_code" | "dept_desc";
 
 export const MASTER_COLUMNS: { value: MasterColumn; label: string }[] = [
+  { value: "all", label: "All master fields" },
   { value: "item", label: "Item" },
   { value: "op_code", label: "Operation Code" },
   { value: "op_desc", label: "Operation Description" },
@@ -113,6 +114,7 @@ export interface ProfileRow {
   email: string;
   full_name: string;
   is_active: boolean;
+  permissions: import("./permissions").UserPermissions | null;
   created_at: string;
 }
 

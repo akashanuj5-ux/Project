@@ -250,7 +250,7 @@ export type Database = {
           dept_code: string | null;
           dept_desc: string | null;
           id: string;
-          item: string;
+          item: string | null;
           op_code: string | null;
           op_desc: string | null;
           updated_at: string;
@@ -260,7 +260,7 @@ export type Database = {
           dept_code?: string | null;
           dept_desc?: string | null;
           id?: string;
-          item: string;
+          item?: string | null;
           op_code?: string | null;
           op_desc?: string | null;
           updated_at?: string;
@@ -270,7 +270,7 @@ export type Database = {
           dept_code?: string | null;
           dept_desc?: string | null;
           id?: string;
-          item?: string;
+          item?: string | null;
           op_code?: string | null;
           op_desc?: string | null;
           updated_at?: string;
@@ -284,6 +284,7 @@ export type Database = {
           full_name: string;
           id: string;
           is_active: boolean;
+          permissions: Json;
           updated_at: string;
         };
         Insert: {
@@ -292,6 +293,7 @@ export type Database = {
           full_name?: string;
           id: string;
           is_active?: boolean;
+          permissions?: Json;
           updated_at?: string;
         };
         Update: {
@@ -300,6 +302,7 @@ export type Database = {
           full_name?: string;
           id?: string;
           is_active?: boolean;
+          permissions?: Json;
           updated_at?: string;
         };
         Relationships: [];
