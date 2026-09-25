@@ -81,6 +81,7 @@ export type Database = {
           change_type: string;
           custom_fields: Json;
           eco_no: string | null;
+          eco_attachment_url: string | null;
           floor_remarks: string | null;
           floor_reviewed_at: string | null;
           floor_reviewed_by: string | null;
@@ -116,6 +117,7 @@ export type Database = {
           change_type?: string;
           custom_fields?: Json;
           eco_no?: string | null;
+          eco_attachment_url?: string | null;
           floor_remarks?: string | null;
           floor_reviewed_at?: string | null;
           floor_reviewed_by?: string | null;
@@ -151,6 +153,7 @@ export type Database = {
           change_type?: string;
           custom_fields?: Json;
           eco_no?: string | null;
+          eco_attachment_url?: string | null;
           floor_remarks?: string | null;
           floor_reviewed_at?: string | null;
           floor_reviewed_by?: string | null;

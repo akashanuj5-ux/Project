@@ -91,6 +91,7 @@ export interface Deviation {
   ppc_reviewed_at: string | null;
   ppc_remarks: string | null;
   eco_no: string | null;
+  eco_attachment_url: string | null;
   fusion_sync: SyncStatus;
   fusion_synced_at: string | null;
   submitted_at: string;

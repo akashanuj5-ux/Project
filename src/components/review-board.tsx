@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, Download, Loader2, Pencil, X } from "lucide-react";
+import { Check, Download, FileText, Loader2, Paperclip, Pencil, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -34,6 +34,28 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error("Could not read attachment"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function attachmentUrlFor(deviation: Deviation): string | null {
+  if (deviation.eco_attachment_url) return deviation.eco_attachment_url;
+  const fallback = deviation.custom_fields?.eco_attachment_url;
+  return typeof fallback === "string" ? fallback : null;
+}
 
 export function ReviewBoard({ level }: { level: "floor" | "ppc" }) {
   const { data: all = [], isLoading } = useDeviations();
@@ -120,6 +142,8 @@ function ReviewCard({
   const [remarks, setRemarks] = useState("");
   const [ecoDialogOpen, setEcoDialogOpen] = useState(false);
   const [ecoNumber, setEcoNumber] = useState("");
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const [attachmentOpen, setAttachmentOpen] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>(() => snapshot(deviation));
 
   const statusKey = level === "floor" ? "floor_status" : "ppc_status";
@@ -188,6 +212,29 @@ function ReviewCard({
     setBusy(true);
     try {
       const now = new Date().toISOString();
+      let attachmentUrl: string | null = null;
+      let attachmentStored = false;
+      if (approve && level === "ppc" && attachment) {
+        const safeName = attachment.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const path = `${session.user.id}/${deviation.id}/${Date.now()}-${safeName}`;
+        const { error: uploadError } = await supabase.storage
+          .from("deviation-attachments")
+          .upload(path, attachment, { contentType: attachment.type, upsert: false });
+        if (uploadError) {
+          if (uploadError.message.toLowerCase().includes("bucket not found")) {
+            attachmentUrl = await fileToDataUrl(attachment);
+            toast.info(
+              "Storage bucket is unavailable, so the attachment was stored with the ECO record.",
+            );
+          } else {
+            throw uploadError;
+          }
+        } else {
+          attachmentUrl = supabase.storage.from("deviation-attachments").getPublicUrl(path)
+            .data.publicUrl;
+          attachmentStored = true;
+        }
+      }
       const patch: Record<string, unknown> =
         level === "floor"
           ? {
@@ -205,10 +252,37 @@ function ReviewCard({
               ppc_reviewed_at: now,
               ppc_remarks: remarks || null,
               ...(approve
-                ? { eco_no: ecoNumber, fusion_sync: "NOT_SYNCED", fusion_synced_at: null }
+                ? {
+                    eco_no: ecoNumber,
+                    eco_attachment_url: attachmentUrl,
+                    fusion_sync: "NOT_SYNCED",
+                    fusion_synced_at: null,
+                  }
                 : {}),
             };
-      const { error } = await supabase.from("deviations").update(patch).eq("id", deviation.id);
+      let { error } = await supabase.from("deviations").update(patch).eq("id", deviation.id);
+      if (error) {
+        const { eco_attachment_url: _, ...legacyPatch } = patch;
+        const customFields = {
+          ...deviation.custom_fields,
+          ...(attachmentUrl ? { eco_attachment_url: attachmentUrl } : {}),
+        };
+        const fallback = await supabase
+          .from("deviations")
+          .update({ ...legacyPatch, custom_fields: customFields })
+          .eq("id", deviation.id);
+        error = fallback.error;
+        attachmentStored = !error && Boolean(attachmentUrl);
+
+        if (error && attachmentUrl) {
+          const retry = await supabase
+            .from("deviations")
+            .update({ ...legacyPatch, custom_fields: deviation.custom_fields })
+            .eq("id", deviation.id);
+          error = retry.error;
+          attachmentStored = false;
+        }
+      }
       if (error) throw error;
       await logAudit({
         deviation_id: deviation.id,
@@ -222,11 +296,23 @@ function ReviewCard({
       await queryClient.invalidateQueries({ queryKey: ["deviations"] });
       await queryClient.invalidateQueries({ queryKey: ["audit"] });
       toast.success(`${deviation.ticket_no} ${approve ? "approved" : "rejected"}`);
+      if (attachment && !attachmentStored) {
+        toast.warning(
+          "Approval saved, but the attachment could not be stored. Apply the attachment migration to enable file storage.",
+        );
+      }
       setRemarks("");
       setEcoNumber("");
+      setAttachment(null);
       setEcoDialogOpen(false);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not update");
+      const message =
+        e instanceof Error
+          ? e.message
+          : e && typeof e === "object" && "message" in e
+            ? String(e.message)
+            : "Could not update";
+      toast.error(message);
     } finally {
       setBusy(false);
     }
@@ -299,6 +385,17 @@ function ReviewCard({
               {deviation.eco_no}
             </span>
             <FusionBadge status={deviation.fusion_sync} hasEco={Boolean(deviation.eco_no)} />
+            {attachmentUrlFor(deviation) && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-[11px]"
+                onClick={() => setAttachmentOpen(true)}
+              >
+                <Paperclip className="mr-1.5 size-3" /> View Attachment
+              </Button>
+            )}
           </div>
         )}
 
@@ -381,6 +478,47 @@ function ReviewCard({
               autoFocus
             />
           </div>
+          {level === "ppc" && (
+            <div className="space-y-2">
+              <Label htmlFor={`eco-attachment-${deviation.id}`}>
+                Attach Reference Image / Document (Optional)
+              </Label>
+              <Input
+                id={`eco-attachment-${deviation.id}`}
+                type="file"
+                accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
+                onChange={(event) => {
+                  const file = event.target.files?.[0] ?? null;
+                  if (file && file.size > 10 * 1024 * 1024) {
+                    toast.error("Attachment must be 10 MB or smaller");
+                    event.currentTarget.value = "";
+                    setAttachment(null);
+                    return;
+                  }
+                  setAttachment(file);
+                }}
+                className="cursor-pointer text-xs"
+              />
+              {attachment && (
+                <div className="flex items-center justify-between rounded border border-border bg-muted/40 px-2 py-1.5 text-xs">
+                  <span className="flex min-w-0 items-center gap-1.5 truncate">
+                    <FileText className="size-3.5 shrink-0 text-primary" />
+                    <span className="truncate">{attachment.name}</span>
+                  </span>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="size-6 shrink-0"
+                    title="Remove attachment"
+                    onClick={() => setAttachment(null)}
+                  >
+                    <X className="size-3.5" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
             <Button onClick={() => decide(true)} disabled={busy || !/^\d+$/.test(ecoNumber)}>
@@ -390,6 +528,53 @@ function ReviewCard({
           </AlertDialogFooter>
         </AlertDialogContent>
       </div>
+      <AttachmentPreview
+        url={attachmentUrlFor(deviation)}
+        open={attachmentOpen}
+        onOpenChange={setAttachmentOpen}
+      />
     </AlertDialog>
+  );
+}
+
+function AttachmentPreview({
+  url,
+  open,
+  onOpenChange,
+}: {
+  url: string | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  if (!url) return null;
+  const isPdf = url.toLowerCase().split("?")[0].endsWith(".pdf");
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="h-[90vh] w-[min(96vw,1100px)] max-w-none">
+        <DialogHeader>
+          <DialogTitle>Reference Attachment</DialogTitle>
+          <DialogDescription>Preview the attachment linked to this ECO approval.</DialogDescription>
+        </DialogHeader>
+        <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border bg-black/20 p-2">
+          {isPdf ? (
+            <iframe title="Reference document" src={url} className="h-full min-h-[65vh] w-full" />
+          ) : (
+            <img
+              src={url}
+              alt="ECO reference attachment"
+              className="mx-auto max-h-[70vh] max-w-full object-contain"
+            />
+          )}
+        </div>
+        <div className="flex justify-end">
+          <Button asChild>
+            <a href={url} target="_blank" rel="noreferrer" download>
+              <Download className="mr-2 size-4" /> Download
+            </a>
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
