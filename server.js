@@ -487,6 +487,50 @@ app.post('/api/auth/logout', requireAuth, (req, res) => {
 // ---------------------------------------------------------------------------
 const APP_ROLES = ['ADMIN', 'REQUESTER', 'FLOOR_MANAGER', 'PPC_REVIEWER', 'VIEWER'];
 
+// Protected administrator — must ALWAYS remain Administrator + Active.
+// Role change, deactivation and deletion are rejected with 403 (backend-enforced).
+// Password reset IS allowed for this account.
+const PROTECTED_ADMIN_EMAIL = 'akash.sharma@karam.in';
+
+function isProtectedEmail(email) {
+  return String(email ?? '').trim().toLowerCase() === PROTECTED_ADMIN_EMAIL;
+}
+
+async function getUserEmailById(userId) {
+  const rows = await query('SELECT email FROM profiles WHERE id = ? LIMIT 1', [userId]);
+  if (rows.length > 0 && rows[0].email) return rows[0].email;
+  const authRows = await query('SELECT email FROM auth_users WHERE id = ? LIMIT 1', [userId]);
+  if (authRows.length > 0 && authRows[0].email) return authRows[0].email;
+  return null;
+}
+
+async function isProtectedUser(userId) {
+  const email = await getUserEmailById(userId);
+  return email !== null && isProtectedEmail(email);
+}
+
+// Self-healing guard: force the protected account back to Active + Administrator.
+// Called after any profile/role mutation touching the protected account.
+async function enforceProtectedState(userId) {
+  await query('UPDATE profiles SET is_active = 1 WHERE id = ?', [userId]);
+  const roleRows = await query('SELECT role FROM user_roles WHERE user_id = ?', [userId]);
+  const roles = roleRows.map((r) => r.role);
+  if (!roles.includes('ADMIN')) {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      await conn.beginTransaction();
+      await conn.query('DELETE FROM user_roles WHERE user_id = ?', [userId]);
+      await conn.query('INSERT INTO user_roles (user_id, role) VALUES (?, ?)', [userId, 'ADMIN']);
+      await conn.commit();
+    } catch {
+      try { if (conn) await conn.rollback(); } catch { /* ignore */ }
+    } finally {
+      if (conn) conn.release();
+    }
+  }
+}
+
 // POST /api/deviations — id + ticket_no are produced by trg_deviations_insert
 app.post('/api/deviations', requireAuthWithRoles, async (req, res) => {
   try {
@@ -682,6 +726,10 @@ app.put('/api/users/:id/role', requireAuthWithRoles, async (req, res) => {
     if (!forbiddenUnless(res, req, ['ADMIN'])) return;
     const role = String((req.body || {}).role || '');
     if (!APP_ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
+    if (await isProtectedUser(req.params.id)) {
+      await enforceProtectedState(req.params.id);
+      return res.status(403).json({ error: 'This administrator account must remain Administrator' });
+    }
     conn = await pool.getConnection();
     const [profiles] = await conn.query('SELECT id FROM profiles WHERE id = ? LIMIT 1', [req.params.id]);
     if (profiles.length === 0) {
@@ -709,6 +757,19 @@ app.patch('/api/profiles/:id', requireAuthWithRoles, async (req, res) => {
     if (!hasAnyRole(req, ['ADMIN']) && req.params.id !== req.user.id) {
       return res.status(403).json({ error: 'Forbidden' });
     }
+    // is_active changes always require Administrator (prevents self-deactivation privilege issues).
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'is_active')) {
+      if (!forbiddenUnless(res, req, ['ADMIN'])) return;
+    }
+    // Protected admin can never be deactivated (backend-enforced 403)
+    if (
+      Object.prototype.hasOwnProperty.call(req.body || {}, 'is_active') &&
+      !toBool((req.body || {}).is_active) &&
+      (await isProtectedUser(req.params.id))
+    ) {
+      await enforceProtectedState(req.params.id);
+      return res.status(403).json({ error: 'This administrator account must remain Active' });
+    }
     const patch = req.body || {};
     const sets = [];
     const params = [];
@@ -727,9 +788,90 @@ app.patch('/api/profiles/:id', requireAuthWithRoles, async (req, res) => {
     if (sets.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
     const result = await query('UPDATE profiles SET ' + sets.join(', ') + ' WHERE id = ?', [...params, req.params.id]);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Profile not found' });
+    // Self-healing: protected account must stay Active (e.g. direct full row writes cannot deactivate it).
+    if (await isProtectedUser(req.params.id)) await enforceProtectedState(req.params.id);
     return res.status(204).end();
   } catch (err) {
     return fail(res, err);
+  }
+});
+
+// POST /api/users/:id/reset-password — admin-only password reset.
+// Body: { password, confirm_password }. Hashes with bcryptjs (cost 10) into
+// auth_users.password_hash. Old hashes are never read or returned.
+app.post('/api/users/:id/reset-password', requireAuthWithRoles, async (req, res) => {
+  try {
+    if (!forbiddenUnless(res, req, ['ADMIN'])) return;
+    const password = String((req.body || {}).password ?? '');
+    const confirm = String((req.body || {}).confirm_password ?? (req.body || {}).confirmPassword ?? '');
+    if (!password || password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+    if (password !== confirm) {
+      return res.status(400).json({ error: 'Passwords do not match' });
+    }
+    const authRows = await query('SELECT id FROM auth_users WHERE id = ? LIMIT 1', [req.params.id]);
+    const profileRows = await query('SELECT id FROM profiles WHERE id = ? LIMIT 1', [req.params.id]);
+    if (authRows.length === 0 && profileRows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+    if (authRows.length > 0) {
+      await query('UPDATE auth_users SET password_hash = ? WHERE id = ?', [passwordHash, req.params.id]);
+    } else {
+      // Profile exists without an auth row — create the auth (login) row for it.
+      const emailRows = await query('SELECT email FROM profiles WHERE id = ? LIMIT 1', [req.params.id]);
+      await query('INSERT INTO auth_users (id, email, raw_user_meta_data, password_hash) VALUES (?, ?, ?, ?)', [
+        req.params.id,
+        emailRows[0]?.email || null,
+        JSON.stringify({}),
+        passwordHash,
+      ]);
+    }
+    // Protected account stays Administrator + Active even after a password reset.
+    if (await isProtectedUser(req.params.id)) await enforceProtectedState(req.params.id);
+    return res.json({ message: 'Password reset successfully' });
+  } catch (err) {
+    return fail(res, err);
+  }
+});
+
+// DELETE /api/users/:id — admin-only local account delete.
+// Removes ONLY that user's auth_users / user_roles / profiles rows safely
+// (transactional; FK dependents are nulled/detached, unrelated data untouched).
+// The protected administrator can never be deleted (403).
+app.delete('/api/users/:id', requireAuthWithRoles, async (req, res) => {
+  let conn;
+  try {
+    if (!forbiddenUnless(res, req, ['ADMIN'])) return;
+    if (await isProtectedUser(req.params.id)) {
+      await enforceProtectedState(req.params.id);
+      return res.status(403).json({ error: 'This administrator account cannot be deleted' });
+    }
+    const profileRows = await query('SELECT id FROM profiles WHERE id = ? LIMIT 1', [req.params.id]);
+    const authRows = await query('SELECT id FROM auth_users WHERE id = ? LIMIT 1', [req.params.id]);
+    if (profileRows.length === 0 && authRows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+    // Detach FK dependents that reference profiles(id) without cascade:
+    // requester keeps history but becomes unlinked; audit actor becomes unlinked.
+    await conn.query('UPDATE deviations SET requester_id = NULL WHERE requester_id = ?', [req.params.id]);
+    await conn.query('UPDATE audit_trail SET actor_id = NULL WHERE actor_id = ?', [req.params.id]);
+    // Remove the user's own role rows, then profile (cascades user_roles), then auth row.
+    await conn.query('DELETE FROM user_roles WHERE user_id = ?', [req.params.id]);
+    await conn.query('DELETE FROM profiles WHERE id = ?', [req.params.id]);
+    await conn.query('DELETE FROM auth_users WHERE id = ?', [req.params.id]);
+    await conn.commit();
+    return res.status(204).end();
+  } catch (err) {
+    if (conn) {
+      try { await conn.rollback(); } catch { /* ignore rollback error */ }
+    }
+    return fail(res, err);
+  } finally {
+    if (conn) conn.release();
   }
 });
 
