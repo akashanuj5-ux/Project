@@ -20,6 +20,7 @@ import { useDeviations, deviationToExportRow, EXPORT_COLUMNS } from "@/lib/data"
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { ageEnd, ageMinutes, isOpen } from "@/lib/types";
 import { AgeBadge, FusionBadge, PageHeader, StatusBadge } from "@/components/badges";
+import { DeleteTicketButton } from "@/components/delete-ticket-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -464,6 +465,7 @@ function Dashboard() {
                 "L2",
                 "ECO",
                 "Fusion",
+                "Actions",
               ].map((h) => (
                 <th key={h} className="px-3 py-2 text-left font-semibold">
                   {h}
@@ -474,13 +476,13 @@ function Dashboard() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">
+                <td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">
                   Loading…
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">
+                <td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">
                   No tickets match these filters.
                 </td>
               </tr>
@@ -503,6 +505,13 @@ function Dashboard() {
                   <td className="px-3 py-2 text-xs">{d.eco_no ?? "—"}</td>
                   <td className="px-3 py-2">
                     <FusionBadge status={d.fusion_sync} hasEco={Boolean(d.eco_no)} />
+                  </td>
+                  <td className="px-3 py-2">
+                    <DeleteTicketButton
+                      ticketId={d.id}
+                      ticketNo={d.ticket_no}
+                      attachmentUrl={d.eco_attachment_url}
+                    />
                   </td>
                 </tr>
               ))

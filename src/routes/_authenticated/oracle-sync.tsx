@@ -10,6 +10,7 @@ import { deviationToExportRow, EXPORT_COLUMNS, useDeviations } from "@/lib/data"
 import { downloadCSV, toCSV } from "@/lib/csv";
 import type { Deviation } from "@/lib/types";
 import { PageHeader, FusionBadge } from "@/components/badges";
+import { DeleteTicketButton } from "@/components/delete-ticket-button";
 import { Button } from "@/components/ui/button";
 import {
   TicketFilters,
@@ -331,22 +332,36 @@ function OracleSyncPage() {
                         )}
                       </td>
                       <td className="px-3 py-2">
-                        {editing ? (
-                          <Button size="sm" disabled={busy} onClick={() => void saveRow(deviation)}>
-                            <Save className="mr-2 size-3.5" /> Save Changes
-                          </Button>
-                        ) : canSync ? (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            title="Edit ECO or Fusion status"
-                            onClick={() => setEditingId(deviation.id)}
-                          >
-                            <Pencil className="size-4" />
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">View only</span>
-                        )}
+                        <div className="flex items-center gap-1">
+                          {editing ? (
+                            <Button
+                              size="sm"
+                              disabled={busy}
+                              onClick={() => void saveRow(deviation)}
+                            >
+                              <Save className="mr-2 size-3.5" /> Save Changes
+                            </Button>
+                          ) : canSync ? (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              title="Edit ECO or Fusion status"
+                              onClick={() => setEditingId(deviation.id)}
+                            >
+                              <Pencil className="size-4" />
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">View only</span>
+                          )}
+                          {!editing && (
+                            <DeleteTicketButton
+                              ticketId={deviation.id}
+                              ticketNo={deviation.ticket_no}
+                              size="icon"
+                              variant="ghost"
+                            />
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

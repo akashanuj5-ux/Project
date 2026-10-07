@@ -613,6 +613,58 @@ app.patch('/api/deviations/:id', requireAuthWithRoles, async (req, res) => {
   }
 });
 
+// DELETE /api/deviations/:id — Administrator only, any stage/status.
+// Deletes ONLY the selected deviation. Its audit trail is PRESERVED: a
+// DELETED marker is written first, then the deviation row is removed with
+// foreign-key checks suspended for this transaction so the ticket's
+// ON DELETE CASCADE audit rows survive as the permanent deletion record.
+// The ticket's Supabase Storage attachment (if any) is removed client-side
+// using the returned attachment URL. Unrelated data is never touched.
+app.delete('/api/deviations/:id', requireAuthWithRoles, async (req, res) => {
+  let conn;
+  try {
+    if (!forbiddenUnless(res, req, ['ADMIN'])) return;
+    const rows = await query('SELECT id, ticket_no, eco_attachment_url, custom_fields FROM deviations WHERE id = ? LIMIT 1', [req.params.id]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Ticket not found' });
+    const ticket = rows[0];
+    let customAttachment = null;
+    try {
+      const custom = typeof ticket.custom_fields === 'object' ? ticket.custom_fields : JSON.parse(ticket.custom_fields || 'null');
+      if (custom && typeof custom.eco_attachment_url === 'string') customAttachment = custom.eco_attachment_url;
+    } catch { /* ignore malformed custom_fields */ }
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+    // Deletion marker BEFORE removing the row (valid FK while the deviation exists).
+    try {
+      const actorName = req.user.name || '';
+      await conn.query(
+        "INSERT INTO audit_trail (deviation_id, action, actor_id, actor_name, actor_email, actor_role, remarks, changes) VALUES (?, 'DELETED', ?, ?, ?, 'ADMIN', ?, ?)",
+        [req.params.id, req.user.id, actorName, req.user.email, 'Ticket ' + (ticket.ticket_no || req.params.id) + ' deleted permanently by Administrator', JSON.stringify([])]
+      );
+    } catch { /* audit insert must not block the delete */ }
+    // Suspend FK checks ONLY for this delete so the ticket's audit rows are
+    // not cascaded away — "preserve audit trail where possible".
+    await conn.query('SET FOREIGN_KEY_CHECKS = 0');
+    await conn.query('DELETE FROM deviations WHERE id = ?', [req.params.id]);
+    await conn.commit();
+    return res.json({
+      message: 'Ticket deleted',
+      attachmentUrl: ticket.eco_attachment_url || customAttachment || null,
+    });
+  } catch (err) {
+    if (conn) {
+      try { await conn.rollback(); } catch { /* ignore rollback error */ }
+    }
+    return fail(res, err);
+  } finally {
+    if (conn) {
+      // Always restore FK checks on the pooled connection before reuse.
+      try { await conn.query('SET FOREIGN_KEY_CHECKS = 1'); } catch { /* ignore */ }
+      conn.release();
+    }
+  }
+});
+
 // POST /api/audit-trail — actor_id always forced to the authenticated user (RLS parity)
 app.post('/api/audit-trail', requireAuthWithRoles, async (req, res) => {
   try {

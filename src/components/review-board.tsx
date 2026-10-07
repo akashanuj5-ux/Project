@@ -9,6 +9,7 @@ import { EXPORT_COLUMNS, deviationToExportRow, logAudit, useDeviations } from "@
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { CHANGE_TYPES, EDITABLE_FIELDS, type Deviation } from "@/lib/types";
 import { AgeBadge, FusionBadge, PageHeader, StatusBadge } from "@/components/badges";
+import { DeleteTicketButton } from "@/components/delete-ticket-button";
 import {
   TicketFilters,
   emptyTicketFilters,
@@ -318,6 +319,13 @@ function ReviewCard({
           <div className="ml-auto flex items-center gap-2">
             <StatusBadge status={deviation.floor_status} label={`L1 ${deviation.floor_status}`} />
             <StatusBadge status={deviation.ppc_status} label={`L2 ${deviation.ppc_status}`} />
+            <DeleteTicketButton
+              ticketId={deviation.id}
+              ticketNo={deviation.ticket_no}
+              attachmentUrl={attachmentUrlFor(deviation)}
+              size="icon"
+              variant="ghost"
+            />
           </div>
         </div>
 
