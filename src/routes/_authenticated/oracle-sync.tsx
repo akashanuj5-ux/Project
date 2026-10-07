@@ -4,7 +4,7 @@ import { Check, CloudUpload, FileSpreadsheet, Pencil, Save, Upload } from "lucid
 import * as XLSX from "xlsx";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { deviationToExportRow, EXPORT_COLUMNS, useDeviations } from "@/lib/data";
 import { downloadCSV, toCSV } from "@/lib/csv";
@@ -72,17 +72,16 @@ function OracleSyncPage() {
 
   async function updateRows(updates: { id: string; eco: string; status: SyncChoice }[]) {
     await Promise.all(
-      updates.map(async ({ id, eco, status }) => {
-        const { error } = await supabase
-          .from("deviations")
-          .update({
+      updates.map(({ id, eco, status }) =>
+        apiFetch(`/api/deviations/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
             eco_no: eco,
             fusion_sync: status,
             fusion_synced_at: status === "SYNCED" ? new Date().toISOString() : null,
-          })
-          .eq("id", id);
-        if (error) throw error;
-      }),
+          }),
+        }),
+      ),
     );
     await queryClient.invalidateQueries({ queryKey: ["deviations"] });
   }

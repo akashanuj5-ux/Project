@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { apiFetch } from "@/lib/api";
 import { ALL_ROLES, ROLE_LABELS, type AppRole, type ProfileRow } from "@/lib/types";
 import {
   mergePermissions,
@@ -81,11 +81,10 @@ export function ManagePermissionsDialog({
   async function save() {
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ permissions: permissions as unknown as Record<string, unknown> })
-        .eq("id", profile.id);
-      if (error) throw error;
+      await apiFetch(`/api/profiles/${profile.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ permissions }),
+      });
       await queryClient.invalidateQueries({ queryKey: ["profiles"] });
       await queryClient.invalidateQueries({ queryKey: ["me", profile.id] });
       toast.success(`Permissions updated for ${profile.full_name || profile.email}`);

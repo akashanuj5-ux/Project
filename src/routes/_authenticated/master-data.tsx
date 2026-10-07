@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Plus, Search, Trash2, Upload } from "lucide-react";
+import { Database, Download, Plus, Pencil, Search, Trash2, Upload } from "lucide-react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/lib/auth";
 import { downloadCSV, toCSV } from "@/lib/csv";
-import { useDebounced } from "@/lib/master";
+import { apiFetch, apiFetchWithHeaders } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { fetchAllMasterRows, useDebounced } from "@/lib/master";
 import type { MasterRow } from "@/lib/types";
 import { PageHeader } from "@/components/badges";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,9 @@ function MasterData() {
   const canEdit = can("masterData", "canEdit");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editRow, setEditRow] = useState<Partial<Record<"item" | "op_code" | "op_desc" | "dept_code" | "dept_desc", string>>>({});
   const [manualRow, setManualRow] = useState({
     item: "",
     op_code: "",
@@ -37,20 +40,11 @@ function MasterData() {
   const { data, isLoading } = useQuery({
     queryKey: ["master-page", term, page],
     queryFn: async () => {
-      let query = supabase
-        .from("master_routing")
-        .select("id,item,op_code,op_desc,dept_code,dept_desc", { count: "exact" })
-        .order("item")
-        .range(page * PAGE, page * PAGE + PAGE - 1);
-      if (term.trim()) {
-        const t = term.trim();
-        query = query.or(
-          `item.ilike.%${t}%,op_code.ilike.%${t}%,op_desc.ilike.%${t}%,dept_code.ilike.%${t}%,dept_desc.ilike.%${t}%`,
-        );
-      }
-      const { data: rows, count, error } = await query;
-      if (error) throw error;
-      return { rows: (rows ?? []) as unknown as MasterRow[], count: count ?? 0 };
+      const path =
+        `/api/master-routing?offset=${page * PAGE}&limit=${PAGE}` +
+        (term.trim() ? `&q=${encodeURIComponent(term.trim())}` : "");
+      const { data: rows, headers } = await apiFetchWithHeaders<MasterRow[]>(path);
+      return { rows, count: Number(headers.get("X-Total-Count") ?? rows.length) };
     },
   });
 
@@ -63,10 +57,17 @@ function MasterData() {
     await queryClient.invalidateQueries({ queryKey: ["master-catalog"] });
   };
 
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditRow({});
+  };
+
   const addRows = useMutation({
     mutationFn: async (newRows: Array<Omit<MasterRow, "id">>) => {
-      const { error } = await supabase.from("master_routing").insert(newRows);
-      if (error) throw error;
+      await apiFetch("/api/master-routing", {
+        method: "POST",
+        body: JSON.stringify(newRows.map(({ item, op_code, op_desc, dept_code, dept_desc }) => ({ item, op_code, op_desc, dept_code, dept_desc }))),
+      });
     },
     onSuccess: async () => {
       setManualRow({ item: "", op_code: "", op_desc: "", dept_code: "", dept_desc: "" });
@@ -78,14 +79,24 @@ function MasterData() {
 
   const deleteRow = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("master_routing").delete().eq("id", id);
-      if (error) throw error;
+      await apiFetch(`/api/master-routing/${id}`, { method: "DELETE" });
     },
     onSuccess: async () => {
       await refresh();
       toast.success("Master data deleted");
     },
     onError: (error) => toast.error(`Could not delete master data: ${error.message}`),
+  });
+
+  const updateRow = useMutation({
+    mutationFn: async ({ id, changes }: { id: string; changes: Record<string, string | null> }) => {
+      await apiFetch(`/api/master-routing/${id}`, { method: "PATCH", body: JSON.stringify(changes) });
+    },
+    onSuccess: async () => {
+      await refresh();
+      toast.success("Master data updated");
+    },
+    onError: (error) => toast.error(`Could not update master data: ${error.message}`),
   });
 
   const importRows = useMutation({
@@ -119,14 +130,12 @@ function MasterData() {
         .filter((row) => Object.values(row).some((value) => value !== null));
       if (parsed.length === 0) throw new Error("The file contains no populated master-data rows");
       if (replace) {
-        const { error: deleteError } = await supabase
-          .from("master_routing")
-          .delete()
-          .not("id", "is", null);
-        if (deleteError) throw deleteError;
+        await apiFetch("/api/master-routing", { method: "DELETE" });
       }
-      const { error } = await supabase.from("master_routing").insert(parsed);
-      if (error) throw error;
+      await apiFetch("/api/master-routing", {
+        method: "POST",
+        body: JSON.stringify(parsed),
+      });
       return parsed.length;
     },
     onSuccess: async (numberOfRows, variables) => {
@@ -167,28 +176,56 @@ function MasterData() {
           <Button
             variant="outline"
             onClick={() =>
-              downloadCSV(
-                "master-routing-page.csv",
-                toCSV(
-                  rows.map((r) => ({
-                    Item: r.item,
-                    "Operation Code": r.op_code ?? "",
-                    "Operation Description": r.op_desc ?? "",
-                    "Department Code": r.dept_code ?? "",
-                    "Department Description": r.dept_desc ?? "",
-                  })),
-                  [
+              void (async () => {
+                if (exporting) return;
+                setExporting(true);
+                const toastId = toast.loading(
+                  term.trim() ? "Exporting filtered master data…" : "Exporting complete master data…",
+                );
+                try {
+                  const all = term.trim()
+                    ? await (async () => {
+                        const out = [];
+                        const pageSize = 1000;
+                        for (let offset = 0; ; offset += pageSize) {
+                          const page = await apiFetch(
+                            `/api/master-routing?offset=${offset}&limit=${pageSize}&q=${encodeURIComponent(term.trim())}`,
+                          );
+                          out.push(...page);
+                          if (page.length < pageSize) break;
+                        }
+                        return out;
+                      })()
+                    : await fetchAllMasterRows();
+                  downloadCSV(
+                    term.trim() ? "master-routing-filtered.csv" : "master-routing-complete.csv",
+                    toCSV(
+                      all.map((r) => ({
+                        Item: r.item,
+                        "Operation Code": r.op_code ?? "",
+                        "Operation Description": r.op_desc ?? "",
+                        "Department Code": r.dept_code ?? "",
+                        "Department Description": r.dept_desc ?? "",
+                      })),
+                      [
                     "Item",
                     "Operation Code",
                     "Operation Description",
                     "Department Code",
                     "Department Description",
                   ],
-                ),
-              )
+                    ),
+                  );
+                  toast.success(`Exported ${all.length.toLocaleString("en-IN")} rows`, { id: toastId });
+                } catch (e) {
+                  toast.error(`Export failed: ${e.message}`, { id: toastId });
+                } finally {
+                  setExporting(false);
+                }
+              })()
             }
           >
-            <Download className="mr-2 size-4" /> Export page
+            <Download className="mr-2 size-4" /> {exporting ? "Exporting…" : term.trim() ? "Export Filtered" : `Export Complete (${count.toLocaleString("en-IN")})`} page
           </Button>
         }
       />
@@ -221,13 +258,15 @@ function MasterData() {
                 addRows.isPending
               }
               onClick={() =>
-                addRows.mutate({
-                  item: manualRow.item.trim() || null,
-                  op_code: manualRow.op_code.trim() || null,
-                  op_desc: manualRow.op_desc.trim() || null,
-                  dept_code: manualRow.dept_code.trim() || null,
-                  dept_desc: manualRow.dept_desc.trim() || null,
-                })
+                addRows.mutate([
+                  {
+                    item: manualRow.item.trim() || null,
+                    op_code: manualRow.op_code.trim() || null,
+                    op_desc: manualRow.op_desc.trim() || null,
+                    dept_code: manualRow.dept_code.trim() || null,
+                    dept_desc: manualRow.dept_desc.trim() || null,
+                  },
+                ])
               }
             >
               <Plus className="mr-2 size-4" /> Add
@@ -298,21 +337,116 @@ function MasterData() {
             ) : (
               rows.map((r) => (
                 <tr key={r.id} className="border-t border-border">
-                  <td className="px-3 py-2 font-medium">{r.item}</td>
-                  <td className="px-3 py-2">{r.op_code ?? "—"}</td>
-                  <td className="px-3 py-2">{r.op_desc ?? "—"}</td>
-                  <td className="px-3 py-2">{r.dept_code ?? "—"}</td>
-                  <td className="px-3 py-2">{r.dept_desc ?? "—"}</td>
+                  <td className="px-3 py-2 font-medium">
+                    {editingId === r.id ? (
+                      <Input
+                        className="bg-background border-input text-sm h-7"
+                        value={editRow.item ?? ""}
+                        onChange={(e) => setEditRow((o) => ({ ...o, item: e.target.value }))}
+                        autoFocus
+                      />
+                    ) : (
+                      r.item
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    {editingId === r.id ? (
+                      <Input
+                        className="bg-background border-input text-sm h-7"
+                        value={editRow.op_code ?? ""}
+                        onChange={(e) => setEditRow((o) => ({ ...o, op_code: e.target.value }))}
+                      />
+                    ) : (
+                      r.op_code ?? "—"
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    {editingId === r.id ? (
+                      <Input
+                        className="bg-background border-input text-sm h-7"
+                        value={editRow.op_desc ?? ""}
+                        onChange={(e) => setEditRow((o) => ({ ...o, op_desc: e.target.value }))}
+                      />
+                    ) : (
+                      r.op_desc ?? "—"
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    {editingId === r.id ? (
+                      <Input
+                        className="bg-background border-input text-sm h-7"
+                        value={editRow.dept_code ?? ""}
+                        onChange={(e) => setEditRow((o) => ({ ...o, dept_code: e.target.value }))}
+                      />
+                    ) : (
+                      r.dept_code ?? "—"
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    {editingId === r.id ? (
+                      <Input
+                        className="bg-background border-input text-sm h-7"
+                        value={editRow.dept_desc ?? ""}
+                        onChange={(e) => setEditRow((o) => ({ ...o, dept_desc: e.target.value }))}
+                      />
+                    ) : (
+                      r.dept_desc ?? "—"
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="Delete row"
-                      disabled={!canEdit || deleteRow.isPending}
-                      onClick={() => deleteRow.mutate(r.id)}
-                    >
-                      <Trash2 className="size-4 text-destructive" />
-                    </Button>
+                    {editingId === r.id ? (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => {
+                            const changes: Record<string, string | null> = {};
+                            const rd = r as Record<string, string>;
+                            for (const key of ["item", "op_code", "op_desc", "dept_code", "dept_desc"] as const) {
+                              const v = (editRow[key] ?? "").trim();
+                              if (v !== "" && v !== rd[key]) changes[key] = v;
+                            }
+                            if (Object.keys(changes).length > 0) updateRow.mutate({ id: r.id, changes });
+                            cancelEdit();
+                          }}
+                        >
+                          Save
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={cancelEdit}>
+                          Cancel
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Edit row"
+                          disabled={!canEdit || updateRow.isPending}
+                          onClick={() => {
+                            setEditingId(r.id);
+                            setEditRow({
+                              item: r.item,
+                              op_code: r.op_code ?? "",
+                              op_desc: r.op_desc ?? "",
+                              dept_code: r.dept_code ?? "",
+                              dept_desc: r.dept_desc ?? "",
+                            });
+                          }}
+                        >
+                          <Pencil className="size-4 text-muted-foreground" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Delete row"
+                          disabled={!canEdit || deleteRow.isPending}
+                          onClick={() => deleteRow.mutate(r.id)}
+                        >
+                          <Trash2 className="size-4 text-destructive" />
+                        </Button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))

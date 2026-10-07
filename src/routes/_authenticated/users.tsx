@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useProfiles } from "@/lib/data";
 import { downloadCSV, toCSV } from "@/lib/csv";
@@ -43,14 +43,13 @@ function Users() {
   }
 
   async function changeRole(userId: string, role: AppRole) {
-    const { error: delErr } = await supabase.from("user_roles").delete().eq("user_id", userId);
-    if (delErr) {
-      toast.error(delErr.message);
-      return;
-    }
-    const { error } = await supabase.from("user_roles").insert({ user_id: userId, role });
-    if (error) {
-      toast.error(error.message);
+    try {
+      await apiFetch(`/api/users/${userId}/role`, {
+        method: "PUT",
+        body: JSON.stringify({ role }),
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update role");
       return;
     }
     await queryClient.invalidateQueries({ queryKey: ["profiles"] });
@@ -58,12 +57,13 @@ function Users() {
   }
 
   async function toggleActive(userId: string, isActive: boolean) {
-    const { error } = await supabase
-      .from("profiles")
-      .update({ is_active: !isActive })
-      .eq("id", userId);
-    if (error) {
-      toast.error(error.message);
+    try {
+      await apiFetch(`/api/profiles/${userId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ is_active: !isActive }),
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update status");
       return;
     }
     await queryClient.invalidateQueries({ queryKey: ["profiles"] });

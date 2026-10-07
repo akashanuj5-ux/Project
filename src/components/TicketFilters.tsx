@@ -1,6 +1,6 @@
 import { Download, Search, X } from "lucide-react";
 import type { Deviation } from "@/lib/types";
-import { ageMinutes, isOpen } from "@/lib/types";
+import { ageEnd, ageMinutes, isOpen } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -240,7 +240,7 @@ export function filterDeviationRows(
     if (filters.stage === "closed" && !(row.ppc_status === "APPROVED" && !isOpen(row)))
       return false;
 
-    const hours = ageMinutes(row.submitted_at) / 60;
+    const hours = ageMinutes(row.submitted_at, ageEnd(row)) / 60;
     if (filters.ageing === "lt24" && hours >= 24) return false;
     if (filters.ageing === "24to48" && (hours < 24 || hours > 48)) return false;
     if (filters.ageing === "gt48" && hours <= 48) return false;

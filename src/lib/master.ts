@@ -1,6 +1,6 @@
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { apiFetch } from "@/lib/api";
 import type { MasterRow } from "./types";
 
 export type LookupKind = "all" | "item" | "op_code" | "op_desc" | "dept_code" | "dept_desc";
@@ -20,18 +20,16 @@ const MASTER_COLUMNS: (keyof MasterRow)[] = [
   "dept_desc",
 ];
 
-async function fetchAllMasterRows(): Promise<MasterRow[]> {
+export async function fetchAllMasterRows(): Promise<MasterRow[]> {
   const rows: MasterRow[] = [];
   const pageSize = 1000;
 
   for (let offset = 0; ; offset += pageSize) {
-    const { data, error } = await supabase
-      .from("master_routing")
-      .select("id,item,op_code,op_desc,dept_code,dept_desc")
-      .range(offset, offset + pageSize - 1);
-    if (error) throw error;
-    rows.push(...((data ?? []) as unknown as MasterRow[]));
-    if (!data || data.length < pageSize) break;
+    const page = await apiFetch<MasterRow[]>(
+      `/api/master-routing?offset=${offset}&limit=${pageSize}`,
+    );
+    rows.push(...page);
+    if (page.length < pageSize) break;
   }
 
   return rows;

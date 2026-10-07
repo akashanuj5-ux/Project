@@ -1,0 +1,34 @@
+=== npm run build ===
+npm run build exit=True
+=== npx tsc --noEmit (exit code only) ===
+tsc error The term '&' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+=== tsc.log first 30 lines ===
+=== deleted-path audit ===
+GONE    supabase\config.toml
+GONE    src\integrations\supabase\client.server.ts
+GONE    src\integrations\supabase\auth-middleware.ts
+GONE    src\integrations\supabase\auth-attacher.ts
+GONE    src\integrations\supabase\cron-auth.ts
+GONE    src\integrations\lovable\index.ts
+GONE    src\lib\lovable-error-reporting.ts
+GONE    .lovable\project.json
+GONE    .lovable\plan\environment.md
+GONE    .lovable\plan\implementation.md
+GONE    .lovable\plan\plan.md
+GONE    .lovable\plan\status.md
+GONE    .lovable\plan\concepts.md
+GONE    .lovable\plan\date.md
+EXISTS  bunfig.toml
+=== supabase/migrations dir (expect GONE) ===
+GONE    supabase\migrations
+=== supabase dir contents (expect: types only) ===
+C:\Users\akash.sharma\Desktop\Project\supabase\mysql_ddl_merged.sql
+
+=== .env ===
+JWT_SECRET=1336501f0d74fa6ad6984096b5354a9131208583b55d4f197ed36a0cc843424c
+VITE_API_URL=http://localhost:5000
+
+=== server.log supabase refs (expect none) ===
+
+=== server.err (last 5 lines) ===
+◇ injected env (2) from .env

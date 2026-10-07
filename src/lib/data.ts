@@ -1,47 +1,31 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { apiFetch } from "@/lib/api";
 import type { AuditEntry, Deviation, FormField, ProfileRow } from "./types";
-import { formatAge } from "./types";
+import { ageEnd, formatAge } from "./types";
 
 export function useDeviations() {
   return useQuery({
     queryKey: ["deviations"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("deviations")
-        .select("*")
-        .order("submitted_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as unknown as Deviation[];
-    },
+    queryFn: () => apiFetch<Deviation[]>("/api/deviations"),
   });
 }
 
 export function useFormFields() {
   return useQuery({
     queryKey: ["form-fields"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("form_fields").select("*").order("sort_order");
-      if (error) throw error;
-      return (data ?? []) as unknown as FormField[];
-    },
+    queryFn: () => apiFetch<FormField[]>("/api/form-fields"),
   });
 }
 
 export function useAuditTrail(deviationId?: string) {
   return useQuery({
     queryKey: ["audit", deviationId ?? "all"],
-    queryFn: async () => {
-      let q = supabase
-        .from("audit_trail")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(500);
-      if (deviationId) q = q.eq("deviation_id", deviationId);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []) as unknown as AuditEntry[];
-    },
+    queryFn: () =>
+      apiFetch<AuditEntry[]>(
+        deviationId
+          ? `/api/audit-trail?deviationId=${encodeURIComponent(deviationId)}`
+          : "/api/audit-trail",
+      ),
   });
 }
 
@@ -49,15 +33,11 @@ export function useProfiles() {
   return useQuery({
     queryKey: ["profiles"],
     queryFn: async () => {
-      const [{ data: profiles, error }, { data: roles }] = await Promise.all([
-        supabase.from("profiles").select("*").order("created_at"),
-        supabase.from("user_roles").select("user_id, role"),
+      const [profiles, roles] = await Promise.all([
+        apiFetch<ProfileRow[]>("/api/profiles"),
+        apiFetch<{ user_id: string; role: string }[]>("/api/user-roles"),
       ]);
-      if (error) throw error;
-      return {
-        profiles: (profiles ?? []) as unknown as ProfileRow[],
-        roles: (roles ?? []) as unknown as { user_id: string; role: string }[],
-      };
+      return { profiles, roles };
     },
   });
 }
@@ -97,7 +77,7 @@ export function deviationToExportRow(d: Deviation): Record<string, string> {
   return {
     "Ticket No": d.ticket_no,
     "Submitted At": new Date(d.submitted_at).toLocaleString(),
-    "Waiting Time": formatAge(d.submitted_at),
+    "Waiting Time": formatAge(d.submitted_at, ageEnd(d), ageEnd(d) !== null),
     Requester: d.requester_name,
     "Requester Email": d.requester_email,
     "Supervisor Name": d.supervisor_name,
@@ -141,15 +121,13 @@ export async function logAudit(entry: {
   remarks?: string | null;
   changes?: { field: string; old: string; new: string }[];
 }) {
-  const { error } = await supabase.from("audit_trail").insert({
-    deviation_id: entry.deviation_id,
-    action: entry.action,
-    actor_id: entry.actor_id,
-    actor_name: entry.actor_name,
-    actor_email: entry.actor_email,
-    actor_role: entry.actor_role,
-    remarks: entry.remarks ?? null,
-    changes: entry.changes ?? [],
+  // actor_id is re-asserted server-side from the JWT (RLS parity)
+  await apiFetch("/api/audit-trail", {
+    method: "POST",
+    body: JSON.stringify({
+      ...entry,
+      remarks: entry.remarks ?? null,
+      changes: entry.changes ?? [],
+    }),
   });
-  if (error) throw error;
 }

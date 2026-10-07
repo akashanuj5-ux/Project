@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useFormFields, logAudit } from "@/lib/data";
 import { CHANGE_TYPES, type FormField, type MasterRow } from "@/lib/types";
@@ -115,12 +115,10 @@ function NewDeviation() {
         remarks: form.remarks || null,
         custom_fields: custom,
       };
-      const { data, error } = await supabase
-        .from("deviations")
-        .insert(payload)
-        .select("id, ticket_no")
-        .single();
-      if (error) throw error;
+      const data = await apiFetch<{ id: string; ticket_no: string }>("/api/deviations", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
       await logAudit({
         deviation_id: (data as { id: string }).id,
         action: "SUBMITTED",

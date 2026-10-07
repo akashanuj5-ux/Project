@@ -52,7 +52,7 @@ function MyRequests() {
               <div className="flex flex-wrap items-center gap-3">
                 <span className="font-display text-lg font-bold tracking-wide">{d.ticket_no}</span>
                 <span className="text-sm text-muted-foreground">Item {d.item_name}</span>
-                <AgeBadge since={d.submitted_at} />
+                <AgeBadge since={d.submitted_at} ticket={d} />
                 <span className="ml-auto inline-flex items-center gap-1 text-xs text-muted-foreground">
                   <Lock className="size-3" /> Read-only
                 </span>

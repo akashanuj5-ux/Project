@@ -1,5 +1,12 @@
 import { CloudCheck, UploadCloud } from "lucide-react";
-import { ageSeverity, formatAge, type ReviewStatus, type SyncStatus } from "@/lib/types";
+import {
+  ageEnd,
+  ageSeverity,
+  formatAge,
+  type Deviation,
+  type ReviewStatus,
+  type SyncStatus,
+} from "@/lib/types";
 
 export function StatusBadge({ status, label }: { status: ReviewStatus; label?: string }) {
   const styles: Record<ReviewStatus, string> = {
@@ -17,18 +24,21 @@ export function StatusBadge({ status, label }: { status: ReviewStatus; label?: s
   );
 }
 
-export function AgeBadge({ since }: { since: string }) {
-  const sev = ageSeverity(since);
+export function AgeBadge({ since, ticket }: { since: string; ticket?: Pick<Deviation, "fusion_sync" | "fusion_synced_at"> }) {
+  const end = ticket ? ageEnd(ticket) : null;
+  const sev = ageSeverity(since, end);
   const styles = {
     normal: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
     warning: "bg-amber-500/15 text-amber-300 border-amber-500/30",
     critical: "bg-red-500/15 text-red-300 border-red-500/30",
   } as const;
+  const frozen = end !== null;
   return (
     <span
       className={`inline-flex rounded border px-2 py-0.5 text-[11px] font-semibold tabular-nums ${styles[sev]}`}
+      title={frozen ? `Closed at Fusion sync (${new Date(end!).toLocaleString()})` : undefined}
     >
-      {formatAge(since)}
+      {formatAge(since, end, frozen)}
     </span>
   );
 }

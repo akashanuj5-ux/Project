@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useFormFields } from "@/lib/data";
 import { PageHeader } from "@/components/badges";
@@ -48,8 +48,11 @@ function FormBuilder() {
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["form-fields"] });
 
   async function update(id: string, patch: Record<string, unknown>) {
-    const { error } = await supabase.from("form_fields").update(patch).eq("id", id);
-    if (error) return toast.error(error.message);
+    try {
+      await apiFetch(`/api/form-fields/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
+    } catch (error) {
+      return toast.error(error instanceof Error ? error.message : "Could not update field");
+    }
     await refresh();
   }
 
@@ -60,23 +63,29 @@ function FormBuilder() {
       .replace(/[^a-z0-9]+/g, "_")
       .replace(/^_|_$/g, "");
     if (!key) return toast.error("Enter a field label");
-    const { error } = await supabase.from("form_fields").insert({
-      field_key: `custom_${key}`,
-      label,
-      field_type: type,
-      options:
-        type === "select"
-          ? options
-              .split(",")
-              .map((o) => o.trim())
-              .filter(Boolean)
-          : [],
-      required: false,
-      visible: true,
-      is_core: false,
-      sort_order: 100 + fields.length,
-    });
-    if (error) return toast.error(error.message);
+    try {
+      await apiFetch("/api/form-fields", {
+        method: "POST",
+        body: JSON.stringify({
+          field_key: `custom_${key}`,
+          label,
+          field_type: type,
+          options:
+            type === "select"
+              ? options
+                  .split(",")
+                  .map((o) => o.trim())
+                  .filter(Boolean)
+              : [],
+          required: false,
+          visible: true,
+          is_core: false,
+          sort_order: 100 + fields.length,
+        }),
+      });
+    } catch (error) {
+      return toast.error(error instanceof Error ? error.message : "Could not add field");
+    }
     setLabel("");
     setOptions("");
     await refresh();
@@ -84,8 +93,11 @@ function FormBuilder() {
   }
 
   async function remove(id: string) {
-    const { error } = await supabase.from("form_fields").delete().eq("id", id);
-    if (error) return toast.error(error.message);
+    try {
+      await apiFetch(`/api/form-fields/${id}`, { method: "DELETE" });
+    } catch (error) {
+      return toast.error(error instanceof Error ? error.message : "Could not delete field");
+    }
     await refresh();
   }
 

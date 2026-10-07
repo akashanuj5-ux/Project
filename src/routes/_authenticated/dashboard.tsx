@@ -18,7 +18,7 @@ import {
 } from "recharts";
 import { useDeviations, deviationToExportRow, EXPORT_COLUMNS } from "@/lib/data";
 import { downloadCSV, toCSV } from "@/lib/csv";
-import { ageMinutes, isOpen } from "@/lib/types";
+import { ageEnd, ageMinutes, isOpen } from "@/lib/types";
 import { AgeBadge, FusionBadge, PageHeader, StatusBadge } from "@/components/badges";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -106,7 +106,7 @@ function Dashboard() {
       if (stage === "rejected" && d.floor_status !== "REJECTED" && d.ppc_status !== "REJECTED")
         return false;
       if (stage === "synced" && d.fusion_sync !== "SYNCED") return false;
-      const hrs = ageMinutes(d.submitted_at) / 60;
+      const hrs = ageMinutes(d.submitted_at, ageEnd(d)) / 60;
       if (aging === "lt24" && hrs >= 24) return false;
       if (aging === "24to48" && (hrs < 24 || hrs > 48)) return false;
       if (aging === "gt48" && hrs <= 48) return false;
@@ -147,7 +147,7 @@ function Dashboard() {
     },
     {
       label: "Ageing > 48h",
-      value: open.filter((d) => ageMinutes(d.submitted_at) / 60 > 48).length,
+      value: open.filter((d) => ageMinutes(d.submitted_at, ageEnd(d)) / 60 > 48).length,
       icon: AlarmClock,
       tone: "text-red-300",
     },
@@ -492,7 +492,7 @@ function Dashboard() {
                   <td className="px-3 py-2">{d.requester_name}</td>
                   <td className="max-w-[220px] truncate px-3 py-2">{d.proposed_operation}</td>
                   <td className="px-3 py-2">
-                    <AgeBadge since={d.submitted_at} />
+                    <AgeBadge since={d.submitted_at} ticket={d} />
                   </td>
                   <td className="px-3 py-2">
                     <StatusBadge status={d.floor_status} />

@@ -17,7 +17,6 @@ import {
   SlidersHorizontal,
   UserCog,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import type { PermissionPage } from "@/lib/permissions";
 import { ROLE_LABELS, type AppRole } from "@/lib/types";
@@ -107,8 +106,16 @@ const NAV: NavItem[] = [
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { activeRole, setActiveRole, availableRoles, userName, userEmail, isAdmin, canView } =
-    useAuth();
+  const {
+    activeRole,
+    setActiveRole,
+    availableRoles,
+    userName,
+    userEmail,
+    isAdmin,
+    canView,
+    signOut: authSignOut,
+  } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -121,7 +128,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   async function signOut() {
     await queryClient.cancelQueries();
     queryClient.clear();
-    await supabase.auth.signOut();
+    await authSignOut();
     navigate({ to: "/auth", replace: true });
   }
 
