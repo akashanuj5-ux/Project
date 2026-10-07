@@ -63,38 +63,38 @@
 
 :root {
   --radius: 0.375rem;
-  --background: oklch(0.18 0.018 250);
-  --foreground: oklch(0.95 0.005 250);
-  --card: oklch(0.225 0.02 252);
-  --card-foreground: oklch(0.95 0.005 250);
-  --popover: oklch(0.225 0.02 252);
-  --popover-foreground: oklch(0.95 0.005 250);
-  --primary: oklch(0.78 0.16 72);
-  --primary-foreground: oklch(0.2 0.03 60);
-  --secondary: oklch(0.29 0.022 252);
-  --secondary-foreground: oklch(0.95 0.005 250);
-  --muted: oklch(0.27 0.02 252);
-  --muted-foreground: oklch(0.7 0.02 252);
-  --accent: oklch(0.72 0.14 165);
-  --accent-foreground: oklch(0.2 0.03 165);
+  --background: oklch(0.970 0.008 250);
+  --foreground: oklch(0.220 0.008 250);
+  --card: oklch(0.925 0.008 250);
+  --card-foreground: oklch(0.220 0.008 250);
+  --popover: oklch(0.925 0.008 250);
+  --popover-foreground: oklch(0.220 0.008 250);
+  --primary: oklch(0.55 0.17 255);
+  --primary-foreground: oklch(0.99 0.005 255);
+  --secondary: oklch(0.860 0.008 250);
+  --secondary-foreground: oklch(0.250 0.008 250);
+  --muted: oklch(0.880 0.008 250);
+  --muted-foreground: oklch(0.480 0.008 250);
+  --accent: oklch(0.62 0.13 165);
+  --accent-foreground: oklch(0.99 0.005 165);
   --destructive: oklch(0.62 0.21 25);
   --destructive-foreground: oklch(0.98 0.005 250);
-  --border: oklch(0.33 0.022 252);
-  --input: oklch(0.32 0.022 252);
-  --ring: oklch(0.78 0.16 72);
-  --chart-1: oklch(0.78 0.16 72);
-  --chart-2: oklch(0.72 0.14 165);
-  --chart-3: oklch(0.65 0.15 250);
+  --border: oklch(0.820 0.008 250);
+  --input: oklch(0.830 0.008 250);
+  --ring: oklch(0.55 0.17 255);
+  --chart-1: oklch(0.55 0.17 255);
+  --chart-2: oklch(0.62 0.13 165);
+  --chart-3: oklch(0.65 0.15 290);
   --chart-4: oklch(0.62 0.21 25);
-  --chart-5: oklch(0.75 0.1 300);
-  --sidebar: oklch(0.155 0.018 252);
-  --sidebar-foreground: oklch(0.92 0.005 250);
-  --sidebar-primary: oklch(0.78 0.16 72);
-  --sidebar-primary-foreground: oklch(0.2 0.03 60);
-  --sidebar-accent: oklch(0.26 0.02 252);
-  --sidebar-accent-foreground: oklch(0.95 0.005 250);
-  --sidebar-border: oklch(0.3 0.022 252);
-  --sidebar-ring: oklch(0.78 0.16 72);
+  --chart-5: oklch(0.75 0.1 10);
+  --sidebar: oklch(1.000 0.008 250);
+  --sidebar-foreground: oklch(0.250 0.008 250);
+  --sidebar-primary: oklch(0.55 0.17 255);
+  --sidebar-primary-foreground: oklch(0.99 0.005 255);
+  --sidebar-accent: oklch(0.890 0.008 250);
+  --sidebar-accent-foreground: oklch(0.250 0.008 250);
+  --sidebar-border: oklch(0.840 0.008 250);
+  --sidebar-ring: oklch(0.55 0.17 255);
   --font-display: "Barlow Condensed", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
 }
@@ -138,6 +138,90 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.551 0.027 264.364);
 }
+
+/*
+ * Steel Light readability remap (light theme only).
+ *
+ * Runtime theming works via inline CSS vars (applyTheme in
+ * src/lib/settings.ts), which also sets html[data-theme-mode]. Token-based
+ * classes (bg-card, text-foreground, text-muted-foreground, ...) already
+ * resolve to Steel Light values via :root above. The rules below only remap
+ * *hardcoded* dark-slate/cyan utilities and pale status tones so panels,
+ * tables, filters, badges, tooltips and chart labels stay readable on the
+ * bright Steel Light surfaces — using the same foreground/muted pairs the
+ * Settings page already shows. Every selector requires
+ * data-theme-mode="light", so dark themes are completely unaffected. Unlayered
+ * author CSS wins over Tailwind's layered utilities by cascade-layer order.
+ */
+html[data-theme-mode="light"] {
+  color-scheme: light;
+}
+
+/* Hardcoded dark panels (filters, date box, tooltips, upload card, inputs).
+ * Opacity-suffixed utilities (60/40) compile to color-mix, so match them via
+ * attribute substring instead of escaped class selectors. */
+html[data-theme-mode="light"] .bg-slate-900,
+html[data-theme-mode="light"] .bg-slate-800,
+html[data-theme-mode="light"] [class*="bg-slate-900"],
+html[data-theme-mode="light"] [class*="bg-slate-950"] {
+  background-color: var(--color-card);
+}
+
+/* Strong text on those panels -> Steel Light foreground */
+html[data-theme-mode="light"] .text-slate-50,
+html[data-theme-mode="light"] .text-slate-100,
+html[data-theme-mode="light"] .text-slate-200,
+html[data-theme-mode="light"] .text-white,
+html[data-theme-mode="light"] .hover\:text-slate-50:hover,
+html[data-theme-mode="light"] .hover\:text-white:hover {
+  color: var(--color-card-foreground);
+}
+
+/* Secondary text on those panels -> Steel Light muted (Settings-page pair) */
+html[data-theme-mode="light"] .text-slate-300,
+html[data-theme-mode="light"] .text-slate-400,
+html[data-theme-mode="light"] .text-slate-500,
+html[data-theme-mode="light"] .placeholder\:text-slate-500::placeholder {
+  color: var(--color-muted-foreground);
+}
+
+/* Hardcoded dark borders -> Steel Light border */
+html[data-theme-mode="light"] .border-slate-600,
+html[data-theme-mode="light"] .border-slate-700,
+html[data-theme-mode="light"] .hover\:border-slate-500:hover {
+  border-color: var(--color-border);
+}
+
+/* Cyan focus ring -> Steel Light ring */
+html[data-theme-mode="light"] .focus\:border-cyan-500:focus {
+  border-color: var(--color-ring);
+}
+
+/* Pale status tones (badges, KPI icons, audit diffs, tabs) -> readable tones */
+html[data-theme-mode="light"] .text-amber-300 {
+  color: #b45309;
+}
+html[data-theme-mode="light"] .text-emerald-300 {
+  color: #047857;
+}
+html[data-theme-mode="light"] .text-red-300 {
+  color: #b91c1c;
+}
+html[data-theme-mode="light"] .text-cyan-300 {
+  color: #0e7490;
+}
+html[data-theme-mode="light"] .text-cyan-200 {
+  color: #155e75;
+}
+
+/* Recharts: axis ticks + bar value labels (set via fill attributes) */
+html[data-theme-mode="light"] .recharts-cartesian-axis-tick text {
+  fill: var(--color-muted-foreground);
+}
+html[data-theme-mode="light"] .recharts-label-list text {
+  fill: var(--color-foreground);
+}
+
 
 @layer base {
   * {

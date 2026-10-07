@@ -4,6 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0f172a" />
+    <script>
+      // Pre-paint theme-mode marker so light-only CSS matches the saved theme.
+      // Mirrors applyTheme() in src/lib/settings.ts ("steel-light" is the light theme).
+      try {
+        document.documentElement.dataset.themeMode =
+          localStorage.getItem("app_theme") === "steel-light" ? "light" : "dark";
+      } catch (e) {
+        document.documentElement.dataset.themeMode = "dark";
+      }
+    </script>
     <title>Routing Deviation & ECO Approval</title>
   </head>
   <body>

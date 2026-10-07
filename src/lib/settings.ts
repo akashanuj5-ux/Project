@@ -143,6 +143,9 @@ export function applyTheme(themeId: string, overrides?: Record<string, string>) 
   if (typeof document === "undefined") return;
   const theme = THEMES.find((t) => t.id === themeId) ?? THEMES[0]!;
   const root = document.documentElement;
+  // Marker for light-only CSS readability overrides in src/styles.css.
+  // "steel-light" is currently the only light theme; all others are dark.
+  root.dataset.themeMode = themeId === "steel-light" ? "light" : "dark";
   for (const [k, v] of Object.entries({ ...theme.vars, ...(overrides ?? {}) })) {
     root.style.setProperty(k, v);
   }
