@@ -60,7 +60,6 @@ function MyRequests() {
                 <DeleteTicketButton
                   ticketId={d.id}
                   ticketNo={d.ticket_no}
-                  attachmentUrl={d.eco_attachment_url}
                 />
               </div>
               <div className="mt-3 grid gap-3 text-sm md:grid-cols-4">

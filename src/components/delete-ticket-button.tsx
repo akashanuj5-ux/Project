@@ -3,7 +3,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch } from "@/lib/api";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,32 +16,21 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-/** Extract the Supabase Storage object path from a public URL for deletion. */
-function storagePathFromUrl(url: string | null | undefined): string | null {
-  if (!url || url.startsWith("data:")) return null;
-  const marker = "/deviation-attachments/";
-  const idx = url.indexOf(marker);
-  if (idx === -1) return null;
-  const path = url.slice(idx + marker.length).split("?")[0];
-  return path || null;
-}
-
 /**
  * Administrator-only "Delete Ticket" action. Renders nothing for non-admins
- * (backend also enforces ADMIN via 403). Shows the required confirmation,
- * deletes the ticket via DELETE /api/deviations/:id, then removes ONLY that
- * ticket's Supabase Storage attachment (if any). Used on every ticket view.
+ * (backend also enforces ADMIN via 403). Shows the required confirmation and
+ * deletes the ticket via DELETE /api/deviations/:id. The backend removes the
+ * ticket's stored attachment rows (ticket_attachments) in the same operation.
+ * Used on every ticket view.
  */
 export function DeleteTicketButton({
   ticketId,
   ticketNo,
-  attachmentUrl,
   size = "sm",
   variant = "destructive",
 }: {
   ticketId: string;
   ticketNo: string;
-  attachmentUrl?: string | null;
   size?: "sm" | "icon";
   variant?: "destructive" | "ghost";
 }) {
@@ -56,20 +44,11 @@ export function DeleteTicketButton({
   async function confirmDelete() {
     setBusy(true);
     try {
-      const result = await apiFetch<{ message: string; attachmentUrl: string | null }>(
-        `/api/deviations/${ticketId}`,
-        { method: "DELETE" },
-      );
-      // Delete ONLY this ticket's own Storage attachment (never unrelated files).
-      const url = attachmentUrl ?? result.attachmentUrl;
-      const path = storagePathFromUrl(url);
-      if (path) {
-        try {
-          await supabase.storage.from("deviation-attachments").remove([path]);
-        } catch {
-          // Attachment cleanup is best-effort; the ticket itself is already deleted.
-        }
-      }
+      // The backend also deletes this ticket's attachment file(s) — only this
+      // ticket's own rows, never unrelated files.
+      await apiFetch<{ message: string }>(`/api/deviations/${ticketId}`, {
+        method: "DELETE",
+      });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not delete ticket");
       setBusy(false);

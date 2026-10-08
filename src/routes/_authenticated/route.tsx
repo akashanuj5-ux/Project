@@ -8,7 +8,7 @@ export const Route = createFileRoute("/_authenticated")({
     const token = getToken();
     if (!token) throw redirect({ to: "/auth" });
     try {
-      // Same round-trip semantics as the old supabase.auth.getUser() guard
+      // Verify the session via /api/auth/me; redirect to /auth when invalid.
       const data = await apiFetch<{ user: { id: string; email: string } }>("/api/auth/me");
       return { user: data.user };
     } catch {

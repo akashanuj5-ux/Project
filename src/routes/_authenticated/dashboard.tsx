@@ -510,7 +510,6 @@ function Dashboard() {
                     <DeleteTicketButton
                       ticketId={d.id}
                       ticketNo={d.ticket_no}
-                      attachmentUrl={d.eco_attachment_url}
                     />
                   </td>
                 </tr>

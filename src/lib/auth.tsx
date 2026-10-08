@@ -4,8 +4,8 @@ import { apiFetch, clearToken, getToken, setToken } from "@/lib/api";
 import type { AppRole, ProfileRow } from "./types";
 import { mergePermissions, type PermissionPage, type UserPermissions } from "./permissions";
 
-/** Local session shape — structurally compatible with the Supabase Session
- *  fields every consumer relies on (`session.user.id`, `session.user.email`). */
+/** Local session shape — exposes the fields every consumer relies on
+ *  (`session.user.id`, `session.user.email`). */
 export interface AuthSession {
   user: { id: string; email: string };
   access_token: string;
@@ -52,8 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [activeRole, setActiveRoleState] = useState<AppRole | null>(null);
   const queryClient = useQueryClient();
 
-  // Bootstrap session from localStorage token.
-  // Replaces supabase.auth.getSession() + onAuthStateChange(); /api/auth/me is the source of truth.
+  // Bootstrap session from localStorage token; /api/auth/me is the source of truth.
   useEffect(() => {
     const token = getToken();
     if (!token) {
@@ -82,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const userId = session?.user.id;
 
   // Same query key/shape as before, now served by the MySQL-backed endpoint
-  // (replaces supabase.from("profiles") + from("user_roles") reads).
+  // for profiles + user_roles reads.
   const { data } = useQuery({
     queryKey: ["me", userId],
     enabled: !!userId,

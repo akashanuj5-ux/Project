@@ -17,7 +17,6 @@ DROP TABLE IF EXISTS `user_roles`;
 DROP TABLE IF EXISTS `auth_users`;
 DROP TABLE IF EXISTS `profiles`;
 DROP TABLE IF EXISTS `master_routing`;
-DROP TABLE IF EXISTS `storage_buckets`;
 
 -- Re-enable foreign key checks
 SET FOREIGN_KEY_CHECKS = 1;
@@ -174,13 +173,20 @@ CREATE TABLE `app_settings` (
 
 
 -- =============================================================================
--- 8. STORAGE EMULATION (For Supabase compatibility)
+-- 8. TICKET ATTACHMENTS (stored locally in MySQL — LONGBLOB binary data)
 -- =============================================================================
-CREATE TABLE `storage_buckets` (
-  `id` VARCHAR(255) NOT NULL,
-  `name` VARCHAR(255) NOT NULL,
-  `public` TINYINT(1) NOT NULL DEFAULT 0,
-  PRIMARY KEY (`id`)
+CREATE TABLE IF NOT EXISTS `ticket_attachments` (
+  `id` VARCHAR(36) NOT NULL,
+  `deviation_id` VARCHAR(36) NOT NULL,
+  `file_name` VARCHAR(255) NOT NULL,
+  `mime_type` VARCHAR(100) NOT NULL,
+  `file_size` INT UNSIGNED NOT NULL,
+  `file_data` LONGBLOB NOT NULL,
+  `uploaded_by` VARCHAR(36) DEFAULT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_ta_deviation_id` (`deviation_id`),
+  CONSTRAINT `fk_ta_deviation_id` FOREIGN KEY (`deviation_id`) REFERENCES `deviations` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
@@ -323,12 +329,8 @@ DELIMITER ;
 
 
 -- =============================================================================
--- 12. DATA SEEDING (Core Form Fields & Storage Buckets)
+-- 12. DATA SEEDING (Core Form Fields)
 -- =============================================================================
-INSERT INTO `storage_buckets` (`id`, `name`, `public`)
-VALUES ('deviation-attachments', 'deviation-attachments', 1)
-ON DUPLICATE KEY UPDATE `public` = 1;
-
 INSERT INTO `form_fields` (
   `field_key`, `label`, `field_type`, `required`, `visible`, `is_core`, `sort_order`, `options`,
   `lookup_enabled`, `lookup_column`, `autofill_target`, `autofill_source`

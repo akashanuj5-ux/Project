@@ -1,9 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, Download, FileText, Loader2, Paperclip, Pencil, X } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch } from "@/lib/api";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  ATTACHMENT_MAX_BYTES,
+  deleteAttachment,
+  fallbackFileName,
+  fetchAttachmentContent,
+  saveBlobAs,
+  uploadDeviationAttachment,
+} from "@/lib/attachments";
 import { useAuth } from "@/lib/auth";
 import { EXPORT_COLUMNS, deviationToExportRow, logAudit, useDeviations } from "@/lib/data";
 import { downloadCSV, toCSV } from "@/lib/csv";
@@ -44,18 +51,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error ?? new Error("Could not read attachment"));
-    reader.readAsDataURL(file);
-  });
-}
-
 function attachmentUrlFor(deviation: Deviation): string | null {
   if (deviation.eco_attachment_url) return deviation.eco_attachment_url;
-  const fallback = deviation.custom_fields?.eco_attachment_url;
+  const fallback = deviation.custom_fields?.["eco_attachment_url"];
   return typeof fallback === "string" ? fallback : null;
 }
 
@@ -146,6 +144,7 @@ function ReviewCard({
   const [ecoNumber, setEcoNumber] = useState("");
   const [attachment, setAttachment] = useState<File | null>(null);
   const [attachmentOpen, setAttachmentOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>(() => snapshot(deviation));
 
   const statusKey = level === "floor" ? "floor_status" : "ppc_status";
@@ -214,29 +213,22 @@ function ReviewCard({
       return;
     }
     setBusy(true);
+    let uploadedAttachmentId: string | null = null;
+    let approvalSaved = false;
     try {
       const now = new Date().toISOString();
       let attachmentUrl: string | null = null;
-      let attachmentStored = false;
       if (approve && level === "ppc" && attachment) {
-        const safeName = attachment.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const path = `${session.user.id}/${deviation.id}/${Date.now()}-${safeName}`;
-        const { error: uploadError } = await supabase.storage
-          .from("deviation-attachments")
-          .upload(path, attachment, { contentType: attachment.type, upsert: false });
-        if (uploadError) {
-          if (uploadError.message.toLowerCase().includes("bucket not found")) {
-            attachmentUrl = await fileToDataUrl(attachment);
-            toast.info(
-              "Storage bucket is unavailable, so the attachment was stored with the ECO record.",
-            );
-          } else {
-            throw uploadError;
-          }
-        } else {
-          attachmentUrl = supabase.storage.from("deviation-attachments").getPublicUrl(path)
-            .data.publicUrl;
-          attachmentStored = true;
+        // 1) Upload FIRST and wait for the backend to confirm the file is
+        //    fully stored in MySQL — the approval only continues afterwards,
+        //    so it can never complete before the upload finishes.
+        setUploading(true);
+        try {
+          const stored = await uploadDeviationAttachment(deviation.id, attachment);
+          attachmentUrl = stored.url;
+          uploadedAttachmentId = stored.id;
+        } finally {
+          setUploading(false);
         }
       }
       const patch: Record<string, unknown> =
@@ -265,12 +257,12 @@ function ReviewCard({
                 : {}),
             };
       // MySQL schema includes eco_attachment_url, so the legacy column-missing
-      // fallback chain from the Supabase era is no longer reachable.
+      // fallback chain for legacy missing-column cases is no longer reachable.
       await apiFetch(`/api/deviations/${deviation.id}`, {
         method: "PATCH",
         body: JSON.stringify(patch),
       });
-      attachmentStored = Boolean(attachmentUrl);
+      approvalSaved = true;
       await logAudit({
         deviation_id: deviation.id,
         action: `${level === "floor" ? "FLOOR" : "PPC"}_${approve ? "APPROVED" : "REJECTED"}`,
@@ -283,16 +275,20 @@ function ReviewCard({
       await queryClient.invalidateQueries({ queryKey: ["deviations"] });
       await queryClient.invalidateQueries({ queryKey: ["audit"] });
       toast.success(`${deviation.ticket_no} ${approve ? "approved" : "rejected"}`);
-      if (attachment && !attachmentStored) {
-        toast.warning(
-          "Approval saved, but the attachment could not be stored. Apply the attachment migration to enable file storage.",
-        );
-      }
       setRemarks("");
       setEcoNumber("");
       setAttachment(null);
       setEcoDialogOpen(false);
     } catch (e) {
+      if (uploadedAttachmentId && !approvalSaved) {
+        // The approval did not save — roll the upload back so no orphaned
+        // file remains, then surface the original error.
+        try {
+          await deleteAttachment(uploadedAttachmentId);
+        } catch {
+          // Best-effort cleanup only.
+        }
+      }
       const message =
         e instanceof Error
           ? e.message
@@ -322,7 +318,6 @@ function ReviewCard({
             <DeleteTicketButton
               ticketId={deviation.id}
               ticketNo={deviation.ticket_no}
-              attachmentUrl={attachmentUrlFor(deviation)}
               size="icon"
               variant="ghost"
             />
@@ -481,9 +476,10 @@ function ReviewCard({
                 id={`eco-attachment-${deviation.id}`}
                 type="file"
                 accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
+                disabled={busy}
                 onChange={(event) => {
                   const file = event.target.files?.[0] ?? null;
-                  if (file && file.size > 10 * 1024 * 1024) {
+                  if (file && file.size > ATTACHMENT_MAX_BYTES) {
                     toast.error("Attachment must be 10 MB or smaller");
                     event.currentTarget.value = "";
                     setAttachment(null);
@@ -517,7 +513,7 @@ function ReviewCard({
             <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
             <Button onClick={() => decide(true)} disabled={busy || !/^\d+$/.test(ecoNumber)}>
               {busy && <Loader2 className="mr-2 size-4 animate-spin" />}
-              Confirm approval
+              {uploading ? "Uploading attachment…" : "Confirm approval"}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -531,6 +527,20 @@ function ReviewCard({
   );
 }
 
+type AttachmentPreviewState =
+  | { kind: "idle" }
+  | { kind: "loading" }
+  | { kind: "error"; message: string }
+  | { kind: "unsupported"; blob: Blob | null; fileName: string | null; mime: string }
+  | { kind: "ready"; renderUrl: string; blob: Blob; fileName: string | null; mime: string };
+
+/**
+ * Preview/download dialog for a stored ticket attachment.
+ * Fetches the ORIGINAL bytes (authenticated Express endpoint or legacy inline
+ * data URL) so the exact server MIME type is preserved: PNG/JPG render as an
+ * image, PDFs in an iframe, anything else shows "Preview unavailable" with a
+ * Download option.
+ */
 function AttachmentPreview({
   url,
   open,
@@ -540,8 +550,56 @@ function AttachmentPreview({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const [state, setState] = useState<AttachmentPreviewState>({ kind: "idle" });
+
+  useEffect(() => {
+    if (!open || !url) {
+      setState({ kind: "idle" });
+      return;
+    }
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    setState({ kind: "loading" });
+    (async () => {
+      try {
+        const content = await fetchAttachmentContent(url);
+        if (cancelled) return;
+        if (!content) {
+          // External/hosted URL — never fetched (no external storage dependency).
+          setState({ kind: "unsupported", blob: null, fileName: null, mime: "" });
+          return;
+        }
+        const { blob, mime, fileName } = content;
+        const renderable =
+          mime === "image/png" || mime === "image/jpeg" || mime === "application/pdf";
+        if (!renderable) {
+          setState({ kind: "unsupported", blob, fileName, mime });
+          return;
+        }
+        objectUrl = URL.createObjectURL(blob);
+        if (cancelled) {
+          URL.revokeObjectURL(objectUrl);
+          objectUrl = null;
+          return;
+        }
+        setState({ kind: "ready", renderUrl: objectUrl, blob, fileName, mime });
+      } catch (e) {
+        if (cancelled) return;
+        setState({
+          kind: "error",
+          message: e instanceof Error ? e.message : "Could not load the attachment",
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [open, url]);
+
   if (!url) return null;
-  const isPdf = url.toLowerCase().split("?")[0].endsWith(".pdf");
+
+  const downloadable = state.kind === "ready" || (state.kind === "unsupported" && state.blob);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -551,21 +609,51 @@ function AttachmentPreview({
           <DialogDescription>Preview the attachment linked to this ECO approval.</DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border bg-black/20 p-2">
-          {isPdf ? (
-            <iframe title="Reference document" src={url} className="h-full min-h-[65vh] w-full" />
-          ) : (
-            <img
-              src={url}
-              alt="ECO reference attachment"
-              className="mx-auto max-h-[70vh] max-w-full object-contain"
-            />
+          {state.kind === "loading" && (
+            <div className="flex h-full min-h-[65vh] items-center justify-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" /> Loading attachment…
+            </div>
           )}
+          {state.kind === "error" && (
+            <div className="flex h-full min-h-[65vh] items-center justify-center px-6 text-center text-sm text-muted-foreground">
+              {state.message}
+            </div>
+          )}
+          {state.kind === "unsupported" && (
+            <div className="flex h-full min-h-[65vh] flex-col items-center justify-center gap-1 px-6 text-center">
+              <span className="text-sm font-medium text-foreground">Preview unavailable</span>
+              <span className="text-xs text-muted-foreground">
+                Download the file to open it in a native application.
+              </span>
+            </div>
+          )}
+          {state.kind === "ready" &&
+            (state.mime === "application/pdf" ? (
+              <iframe
+                title="Reference document"
+                src={state.renderUrl}
+                className="h-full min-h-[65vh] w-full"
+              />
+            ) : (
+              <img
+                src={state.renderUrl}
+                alt="ECO reference attachment"
+                className="mx-auto max-h-[70vh] max-w-full object-contain"
+              />
+            ))}
         </div>
         <div className="flex justify-end">
-          <Button asChild>
-            <a href={url} target="_blank" rel="noreferrer" download>
-              <Download className="mr-2 size-4" /> Download
-            </a>
+          <Button
+            disabled={!downloadable}
+            onClick={() => {
+              if (state.kind === "ready") {
+                saveBlobAs(state.blob, state.fileName ?? fallbackFileName(state.mime));
+              } else if (state.kind === "unsupported" && state.blob) {
+                saveBlobAs(state.blob, state.fileName ?? fallbackFileName(state.mime));
+              }
+            }}
+          >
+            <Download className="mr-2 size-4" /> Download
           </Button>
         </div>
       </DialogContent>

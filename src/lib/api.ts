@@ -84,3 +84,48 @@ export async function apiFetchWithHeaders<T>(
   assertOk(res, body);
   return { data: body as T, headers: res.headers };
 }
+
+/** Absolute URL for an API path — for elements that cannot send headers. */
+export function apiUrl(path: string): string {
+  return `${API_BASE}${path}`;
+}
+
+/**
+ * Authenticated binary request. Used by attachment preview/download, which
+ * need the ORIGINAL bytes plus the server-provided MIME type and filename.
+ * Same token/401 semantics as apiFetch, but never forces a JSON content type.
+ */
+export async function apiFetchBlob(
+  path: string,
+  options: RequestInit = {},
+): Promise<{ blob: Blob; headers: Headers }> {
+  const token = getToken();
+  const headers = new Headers(options.headers);
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+
+  if (res.status === 401 && token) {
+    clearToken();
+    throw new Error("Session expired. Please sign in again.");
+  }
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`;
+    try {
+      const body: unknown = await res.json();
+      if (
+        body &&
+        typeof body === "object" &&
+        "error" in body &&
+        typeof (body as { error: unknown }).error === "string"
+      ) {
+        message = (body as { error: string }).error;
+      }
+    } catch {
+      // Non-JSON error body — keep the status-based message.
+    }
+    throw new Error(message);
+  }
+  return { blob: await res.blob(), headers: res.headers };
+}
+

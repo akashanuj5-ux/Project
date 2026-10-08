@@ -105,7 +105,7 @@ function requireAuth(req, res, next) {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 3 helpers: role loading + Supabase-compatible row mappers
+// Phase 3 helpers: role loading + API row mappers
 // ---------------------------------------------------------------------------
 
 async function loadRoles(userId) {
@@ -151,7 +151,7 @@ function forbiddenUnless(res, req, allowed) {
 const DEVIATION_READ_ROLES = ['ADMIN', 'FLOOR_MANAGER', 'PPC_REVIEWER', 'VIEWER'];
 
 // MySQL returns 1/0 for TINYINT and strings for JSON columns; normalize to
-// the exact shapes the Supabase client used to return (booleans + objects).
+// the exact shapes the API returns (booleans + objects).
 function toBool(v) {
   return v === true || v === 1 || v === '1';
 }
@@ -482,7 +482,7 @@ app.post('/api/auth/logout', requireAuth, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// Phase 3: database CRUD API (migrated from Supabase client calls).
+// Phase 3: database CRUD API (local MySQL + Express).
 // Parameterized queries only; RLS-equivalent role rules enforced server-side.
 // ---------------------------------------------------------------------------
 const APP_ROLES = ['ADMIN', 'REQUESTER', 'FLOOR_MANAGER', 'PPC_REVIEWER', 'VIEWER'];
@@ -618,8 +618,8 @@ app.patch('/api/deviations/:id', requireAuthWithRoles, async (req, res) => {
 // DELETED marker is written first, then the deviation row is removed with
 // foreign-key checks suspended for this transaction so the ticket's
 // ON DELETE CASCADE audit rows survive as the permanent deletion record.
-// The ticket's Supabase Storage attachment (if any) is removed client-side
-// using the returned attachment URL. Unrelated data is never touched.
+// The ticket's stored attachment rows (ticket_attachments) are deleted in the
+// same transaction. Unrelated data is never touched.
 app.delete('/api/deviations/:id', requireAuthWithRoles, async (req, res) => {
   let conn;
   try {
@@ -642,6 +642,9 @@ app.delete('/api/deviations/:id', requireAuthWithRoles, async (req, res) => {
         [req.params.id, req.user.id, actorName, req.user.email, 'Ticket ' + (ticket.ticket_no || req.params.id) + ' deleted permanently by Administrator', JSON.stringify([])]
       );
     } catch { /* audit insert must not block the delete */ }
+    // FK checks are suspended below, so the cascade would not fire — remove the
+    // ticket's own attachment files explicitly (only this ticket's rows).
+    await conn.query('DELETE FROM ticket_attachments WHERE deviation_id = ?', [req.params.id]);
     // Suspend FK checks ONLY for this delete so the ticket's audit rows are
     // not cascaded away — "preserve audit trail where possible".
     await conn.query('SET FOREIGN_KEY_CHECKS = 0');
@@ -664,6 +667,152 @@ app.delete('/api/deviations/:id', requireAuthWithRoles, async (req, res) => {
     }
   }
 });
+
+// ---------------------------------------------------------------------------
+// Ticket attachments — stored locally in MySQL (LONGBLOB).
+// Binary file data lives in ticket_attachments; deviations.eco_attachment_url
+// stores the relative API path ("/api/attachments/<id>") for the linked file.
+// ---------------------------------------------------------------------------
+const ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024; // matches the 10 MB client-side check
+const ATTACHMENT_EXT_BY_MIME = {
+  'image/png': ['png'],
+  'image/jpeg': ['jpg', 'jpeg'],
+  'application/pdf': ['pdf'],
+};
+const ATTACHMENT_MIME_BY_EXT = {};
+for (const [mime, exts] of Object.entries(ATTACHMENT_EXT_BY_MIME)) {
+  for (const ext of exts) ATTACHMENT_MIME_BY_EXT[ext] = mime;
+}
+// Same roles that may update a deviation (PATCH /api/deviations/:id) may attach files.
+const ATTACHMENT_UPLOAD_ROLES = ['ADMIN', 'FLOOR_MANAGER', 'PPC_REVIEWER'];
+
+// Strip any path components and keep a conservative filename charset.
+function sanitizeAttachmentName(name) {
+  const base = String(name || '').split(/[\\/]/).pop() || '';
+  const safe = base
+    .replace(/[^A-Za-z0-9._-]/g, '_')
+    .replace(/\.{2,}/g, '.')
+    .replace(/^[.\-_]+/, '')
+    .slice(0, 200);
+  return safe || 'attachment';
+}
+
+// Reject files whose bytes do not match the declared MIME type.
+function matchesMagicBytes(mime, buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 8) return false;
+  if (mime === 'image/png') {
+    return (
+      buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47 &&
+      buf[4] === 0x0d && buf[5] === 0x0a && buf[6] === 0x1a && buf[7] === 0x0a
+    );
+  }
+  if (mime === 'image/jpeg') return buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+  if (mime === 'application/pdf') return buf.slice(0, 4).toString('latin1') === '%PDF';
+  return false;
+}
+
+// POST /api/deviations/:id/attachments — store a ticket attachment in MySQL.
+// Body: { file_name, mime_type, content_base64 }. Caller must be able to
+// update the deviation; validation covers size, MIME type and filename.
+app.post('/api/deviations/:id/attachments', requireAuthWithRoles, async (req, res) => {
+  try {
+    if (!forbiddenUnless(res, req, ATTACHMENT_UPLOAD_ROLES)) return;
+    const devRows = await query('SELECT id FROM deviations WHERE id = ? LIMIT 1', [req.params.id]);
+    if (devRows.length === 0) return res.status(404).json({ error: 'Deviation not found' });
+
+    const body = req.body || {};
+    const fileName = sanitizeAttachmentName(body.file_name);
+    const ext = fileName.toLowerCase().split('.').pop() || '';
+    const declaredMime = String(body.mime_type || '').trim().toLowerCase();
+    const mime = ATTACHMENT_MIME_BY_EXT[ext];
+    if (!mime || mime !== declaredMime) {
+      return res.status(400).json({ error: 'Unsupported file type. Allowed: PNG, JPG/JPEG, PDF' });
+    }
+    const b64 = typeof body.content_base64 === 'string' ? body.content_base64 : '';
+    if (!b64) return res.status(400).json({ error: 'content_base64 is required' });
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(b64.replace(/\r?\n/g, ''))) {
+      return res.status(400).json({ error: 'content_base64 is not valid base64' });
+    }
+    // Cheap pre-decode size guard (base64 expands data by ~4/3).
+    if (b64.length > Math.ceil((ATTACHMENT_MAX_BYTES * 4) / 3) + 8) {
+      return res.status(413).json({ error: 'Attachment must be 10 MB or smaller' });
+    }
+    const buf = Buffer.from(b64.replace(/\r?\n/g, ''), 'base64');
+    if (buf.length === 0) return res.status(400).json({ error: 'Attachment file is empty' });
+    if (buf.length > ATTACHMENT_MAX_BYTES) {
+      return res.status(413).json({ error: 'Attachment must be 10 MB or smaller' });
+    }
+    if (!matchesMagicBytes(mime, buf)) {
+      return res.status(400).json({ error: 'File content does not match the declared file type' });
+    }
+    const id = crypto.randomUUID();
+    await query(
+      'INSERT INTO ticket_attachments (id, deviation_id, file_name, mime_type, file_size, file_data, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [id, req.params.id, fileName, mime, buf.length, buf, req.user.id]
+    );
+    return res.status(201).json({
+      id,
+      deviation_id: req.params.id,
+      file_name: fileName,
+      mime_type: mime,
+      file_size: buf.length,
+      url: '/api/attachments/' + id,
+    });
+  } catch (err) {
+    return fail(res, err);
+  }
+});
+
+// GET /api/attachments/:id — authenticated download/preview.
+// Returns the ORIGINAL binary bytes with the stored MIME type and filename.
+// ?download=1 forces Content-Disposition: attachment (save-as); otherwise inline.
+app.get('/api/attachments/:id', requireAuthWithRoles, async (req, res) => {
+  try {
+    const rows = await query(
+      'SELECT a.id, a.deviation_id, a.file_name, a.mime_type, a.file_size, a.file_data, d.requester_id ' +
+        'FROM ticket_attachments a JOIN deviations d ON d.id = a.deviation_id WHERE a.id = ? LIMIT 1',
+      [req.params.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Attachment not found' });
+    const att = rows[0];
+    // Same visibility rule as GET /api/deviations/:id: reviewers/admin/viewers
+    // see every ticket; requesters only their own. Never leak other tickets' files.
+    const seesAll = hasAnyRole(req, DEVIATION_READ_ROLES);
+    if (!seesAll && att.requester_id !== req.user.id) {
+      return res.status(404).json({ error: 'Attachment not found' });
+    }
+    const download = String(req.query.download || '') === '1';
+    const data = Buffer.isBuffer(att.file_data) ? att.file_data : Buffer.from(att.file_data);
+    const asciiName = String(att.file_name).replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
+    const utfName = encodeURIComponent(String(att.file_name));
+    res.setHeader('Content-Type', String(att.mime_type));
+    res.setHeader('Content-Length', String(data.length));
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader(
+      'Content-Disposition',
+      (download ? 'attachment' : 'inline') + '; filename="' + asciiName + '"; filename*=UTF-8\'\'' + utfName
+    );
+    res.setHeader('Cache-Control', 'private, max-age=0, must-revalidate');
+    return res.end(data);
+  } catch (err) {
+    return fail(res, err);
+  }
+});
+
+// DELETE /api/attachments/:id — Administrator only, matching the existing rule
+// that only administrators may remove ticket attachments (via ticket deletion).
+app.delete('/api/attachments/:id', requireAuthWithRoles, async (req, res) => {
+  try {
+    if (!forbiddenUnless(res, req, ['ADMIN'])) return;
+    const rows = await query('SELECT id FROM ticket_attachments WHERE id = ? LIMIT 1', [req.params.id]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Attachment not found' });
+    await query('DELETE FROM ticket_attachments WHERE id = ?', [req.params.id]);
+    return res.status(204).end();
+  } catch (err) {
+    return fail(res, err);
+  }
+});
+
 
 // POST /api/audit-trail — actor_id always forced to the authenticated user (RLS parity)
 app.post('/api/audit-trail', requireAuthWithRoles, async (req, res) => {
@@ -1035,7 +1184,33 @@ app.put('/api/app-settings/:key', requireAuthWithRoles, async (req, res) => {
   }
 });
 
+// Idempotent, non-destructive schema guard: creates the attachment table when
+// it does not exist yet. Never drops or alters existing tables or data.
+const ATTACHMENT_TABLE_DDL =
+  'CREATE TABLE IF NOT EXISTS `ticket_attachments` (' +
+  ' `id` VARCHAR(36) NOT NULL,' +
+  ' `deviation_id` VARCHAR(36) NOT NULL,' +
+  ' `file_name` VARCHAR(255) NOT NULL,' +
+  ' `mime_type` VARCHAR(100) NOT NULL,' +
+  ' `file_size` INT UNSIGNED NOT NULL,' +
+  ' `file_data` LONGBLOB NOT NULL,' +
+  ' `uploaded_by` VARCHAR(36) DEFAULT NULL,' +
+  ' `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,' +
+  ' PRIMARY KEY (`id`),' +
+  ' INDEX `idx_ta_deviation_id` (`deviation_id`),' +
+  ' CONSTRAINT `fk_ta_deviation_id` FOREIGN KEY (`deviation_id`)' +
+  '   REFERENCES `deviations` (`id`) ON DELETE CASCADE' +
+  ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
+
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Backend running on http://localhost:${PORT}`);
-});
+pool
+  .query(ATTACHMENT_TABLE_DDL)
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Backend running on http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('[attachments] Could not ensure ticket_attachments table:', err.message);
+    process.exit(1);
+  });
